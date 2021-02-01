@@ -38,7 +38,7 @@ static int load_cert(const char * file, mycms_blob *blob) {
 		goto cleanup;
 	}
 
-	if ((data = calloc(1, blob->size)) == NULL) {
+	if ((data = OPENSSL_zalloc(blob->size)) == NULL) {
 		goto cleanup;
 	}
 
@@ -57,7 +57,7 @@ cleanup:
 	}
 
 	if (data != NULL) {
-		free(data);
+		OPENSSL_free(data);
 		data = NULL;
 	}
 
@@ -125,12 +125,12 @@ static int cmd_encrypt(int argc, char *argv[]) {
 				{
 					mycms_blob_list t;
 
-					if ((t = calloc(1, sizeof(*t))) == NULL) {
+					if ((t = OPENSSL_zalloc(sizeof(*t))) == NULL) {
 						goto cleanup;
 					}
 
 					if (!load_cert(optarg, &t->blob)) {
-						free(t);
+						OPENSSL_free(t);
 						goto cleanup;
 					}
 
@@ -189,9 +189,9 @@ cleanup:
 		mycms_blob_list t = to;
 		to = to->next;
 		t->next = NULL;
-		free(t->blob.data);
+		OPENSSL_free(t->blob.data);
 		t->blob.data = NULL;
-		free(t);
+		OPENSSL_free(t);
 	}
 
 	return ret;
@@ -270,12 +270,12 @@ static int cmd_encrypt_add(int argc, char *argv[]) {
 				{
 					mycms_blob_list t;
 
-					if ((t = calloc(1, sizeof(*t))) == NULL) {
+					if ((t = OPENSSL_zalloc(sizeof(*t))) == NULL) {
 						goto cleanup;
 					}
 
 					if (!load_cert(optarg, &t->blob)) {
-						free(t);
+						OPENSSL_free(t);
 						goto cleanup;
 					}
 
@@ -338,9 +338,9 @@ cleanup:
 		mycms_blob_list t = to;
 		to = to->next;
 		t->next = NULL;
-		free(t->blob.data);
+		OPENSSL_free(t->blob.data);
 		t->blob.data = NULL;
-		free(t);
+		OPENSSL_free(t);
 	}
 
 	return ret;

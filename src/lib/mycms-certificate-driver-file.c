@@ -121,7 +121,7 @@ __driver_file_free(
 				certificate_file->rsa = NULL;
 			}
 		#endif
-		free(certificate_file);
+		OPENSSL_free(certificate_file);
 	}
 
 	return ret;
@@ -145,7 +145,7 @@ __driver_file_load(
 	FILE *fp = NULL;
 	mycms_blob blob = {NULL, 0};
 
-	if ((work = strdup(what)) == NULL) {
+	if ((work = OPENSSL_strdup(what)) == NULL) {
 		goto cleanup;
 	}
 
@@ -179,7 +179,7 @@ __driver_file_load(
 		goto cleanup;
 	}
 
-	if ((blob.data = calloc(1, blob.size)) == NULL) {
+	if ((blob.data = OPENSSL_zalloc(blob.size)) == NULL) {
 		goto cleanup;
 	}
 
@@ -191,7 +191,7 @@ __driver_file_load(
 		goto cleanup;
 	}
 
-	if ((certificate_file = calloc(1, sizeof(struct mycms_certificate_file_s))) == NULL) {
+	if ((certificate_file = OPENSSL_zalloc(sizeof(struct mycms_certificate_file_s))) == NULL) {
 		goto cleanup;
 	}
 
@@ -220,7 +220,7 @@ __driver_file_load(
 
 cleanup:
 	if (blob.data != NULL) {
-		free(blob.data);
+		OPENSSL_free(blob.data);
 		blob.data = NULL;
 	}
 
@@ -230,7 +230,7 @@ cleanup:
 	}
 
 	if (work != NULL) {
-		free(work);
+		OPENSSL_free(work);
 		work = NULL;
 	}
 
@@ -246,7 +246,7 @@ cleanup:
 			certificate_file->rsa = NULL;
 		}
 #endif
-		free(certificate_file);
+		OPENSSL_free(certificate_file);
 		certificate_file = NULL;
 	}
 

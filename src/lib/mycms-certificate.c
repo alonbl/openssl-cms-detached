@@ -242,7 +242,7 @@ _mycms_certificate_static_free(void) {
 
 mycms_certificate
 mycms_certificate_new(void) {
-	return calloc(1, sizeof(struct mycms_certificate_s));
+	return OPENSSL_zalloc(sizeof(struct mycms_certificate_s));
 }
 
 int
@@ -267,7 +267,7 @@ mycms_certificate_destroy(
 	if (certificate->driver_free != NULL) {
 		certificate->driver_free(certificate);
 	}
-	free(certificate);
+	OPENSSL_free(certificate);
 	return 1;
 }
 
