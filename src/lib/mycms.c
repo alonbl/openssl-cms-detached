@@ -41,15 +41,18 @@ mycms_static_free(void) {
 
 mycms
 mycms_new(void) {
-	return OPENSSL_zalloc(sizeof(struct mycms_s));
+	return OPENSSL_zalloc(sizeof((mycms *)NULL));
 }
 
 int
-mycms_construct(const mycms m) {
+mycms_construct(
+	const mycms mycms __attribute__((unused))
+) {
 	return 1;
 }
 
 int
 mycms_destroy(const mycms m) {
 	OPENSSL_free((void *)m);
+	return 1;
 }

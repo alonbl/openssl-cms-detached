@@ -147,7 +147,10 @@ test "${enable_openssl_err_strings}" = "yes" && AC_DEFINE([ENABLE_OPENSSL_ERR_ST
 test "${enable_cms_decrypt}" = "yes" && AC_DEFINE([ENABLE_CMS_DECRYPT], [1], [Enable cms decrypt])
 test "${enable_cms_encrypt}" = "yes" && AC_DEFINE([ENABLE_CMS_ENCRYPT], [1], [Enable cms encrypt])
 test "${enable_certificate_driver_file}" = "yes" && AC_DEFINE([ENABLE_CERTIFICATE_DRIVER_FILE], [1], [Enable cms certificate file driver])
-test "${enable_certificate_driver_pkcs11}" = "yes" && AC_DEFINE([ENABLE_CERTIFICATE_DRIVER_PKCS11], [1], [Enable cms pkcs11 file driver])
+if test "${enable_certificate_driver_pkcs11}" = "yes"; then
+	AC_DEFINE([ENABLE_CERTIFICATE_DRIVER_PKCS11], [1], [Enable cms pkcs11 file driver])
+	AC_CHECK_LIB([dl], [dlopen])
+fi
 
 pkgconfigdir="\$(libdir)/pkgconfig"
 mycmsincludedir="\$(includedir)/mycms"

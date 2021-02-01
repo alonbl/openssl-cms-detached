@@ -12,12 +12,12 @@
 
 #include <mycms-certificate-driver-file.h>
 
-struct mycms_certificate_file_s {
+struct __mycms_certificate_driver_file_s {
 #ifndef OPENSSL_NO_RSA
 	RSA *rsa;
 #endif
 };
-typedef struct mycms_certificate_file_s *mycms_certificate_file;
+typedef struct __mycms_certificate_driver_file_s *__mycms_certificate_driver_file;
 
 static int __convert_padding(const int padding) {
 	int ret;
@@ -76,7 +76,7 @@ __driver_file_rsa_private_op(
 	const size_t to_size __attribute__((unused)),
 	const int padding
 ) {
-	mycms_certificate_file certificate_file = (mycms_certificate_file)mycms_certificate_get_userdata(certificate);
+	__mycms_certificate_driver_file certificate_file = (__mycms_certificate_driver_file)mycms_certificate_get_userdata(certificate);
 	int cpadding;
 	const RSA_METHOD *rsa_method = NULL;
 	int ret = -1;
@@ -110,7 +110,7 @@ int
 __driver_file_free(
 	const mycms_certificate certificate
 ) {
-	mycms_certificate_file certificate_file = (mycms_certificate_file)mycms_certificate_get_userdata(certificate);
+	__mycms_certificate_driver_file certificate_file = (__mycms_certificate_driver_file)mycms_certificate_get_userdata(certificate);
 
 	int ret = 1;
 
@@ -133,7 +133,7 @@ __driver_file_load(
 	const mycms_certificate certificate,
 	const char * const what
 ) {
-	mycms_certificate_file certificate_file = NULL;
+	__mycms_certificate_driver_file certificate_file = NULL;
 
 	EVP_PKEY *evp = NULL;
 
@@ -191,7 +191,7 @@ __driver_file_load(
 		goto cleanup;
 	}
 
-	if ((certificate_file = OPENSSL_zalloc(sizeof(struct mycms_certificate_file_s))) == NULL) {
+	if ((certificate_file = OPENSSL_zalloc(sizeof(*certificate_file))) == NULL) {
 		goto cleanup;
 	}
 

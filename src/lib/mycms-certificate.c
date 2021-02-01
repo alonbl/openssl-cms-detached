@@ -247,7 +247,7 @@ mycms_certificate_new(
 ) {
 	mycms_certificate certificate = NULL;
 
-	if ((certificate = OPENSSL_zalloc(sizeof(struct mycms_certificate_s))) != NULL) {
+	if ((certificate = OPENSSL_zalloc(sizeof(*certificate))) != NULL) {
 		certificate->mycms = mycms;
 	}
 
@@ -256,7 +256,7 @@ mycms_certificate_new(
 
 int
 mycms_certificate_construct(
-	const mycms_certificate certificate
+	const mycms_certificate certificate __attribute__((unused))
 ) {
 	return 1;
 }
