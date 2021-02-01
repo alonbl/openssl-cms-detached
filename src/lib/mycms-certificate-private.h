@@ -4,7 +4,7 @@
 #include <openssl/x509.h>
 #include <openssl/evp.h>
 
-#include <mycms-certificate.h>
+#include <mycms/mycms-certificate.h>
 
 int
 _mycms_certificate_static_init(void);

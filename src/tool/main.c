@@ -2,19 +2,137 @@
 #include <config.h>
 #endif
 
-#include <getopt.h>
 #include <stdio.h>
 #include <string.h>
 
-#include <openssl/evp.h>
 #include <openssl/err.h>
 
-#include <mycms.h>
-#include <mycms-certificate-driver-file.h>
+#include <mycms/mycms.h>
+#include <mycms/mycms-certificate-driver-file.h>
+#include <mycms/mycms-certificate-driver-pkcs11.h>
 
-#if defined(ENABLE_CMS_DECRYPT) || defined(ENABLE_CMS_DECRYPT)
+#include "getoptutil.h"
+#include "util.h"
 
-static int load_cert(const char * file, mycms_blob *blob) {
+static const char *__FEATURES[] = {
+	"sane",
+#if defined(ENABLE_CERTIFICATE_DRIVER_FILE)
+	"certificate-driver-file",
+#endif
+#if defined(ENABLE_CERTIFICATE_DRIVER_PKCS11)
+	"certificate-driver-pkcs11",
+#endif
+#if defined(ENABLE_CMS_DECRYPT)
+	"decrypt",
+#endif
+#if defined(ENABLE_CMS_ENCRYPT)
+	"encrypt",
+#endif
+	NULL
+};
+
+#if defined(ENABLE_CMS_ENCRYPT) || defined(ENABLE_CMS_DECRYPT)
+
+typedef int (*certificate_driver_apply)(const mycms_certificate c);
+typedef const char *(*certificate_driver_usage)(void);
+static const struct certificate_driver_s {
+	const char *name;
+	certificate_driver_usage u;
+	certificate_driver_apply p;
+} __CERTIFICATE_DRIVERS[] = {
+#ifdef ENABLE_CERTIFICATE_DRIVER_FILE
+	{"file", mycms_certificate_driver_file_usage, mycms_certificate_driver_file_apply},
+#endif
+#ifdef ENABLE_CERTIFICATE_DRIVER_PKCS11
+	{"pkcs11", mycms_certificate_driver_pkcs11_usage, mycms_certificate_driver_pkcs11_apply},
+#endif
+	{NULL, NULL, NULL}
+};
+
+static
+certificate_driver_apply
+__get_certificate_driver(
+	const char ** what
+) {
+	const struct certificate_driver_s *sd = __CERTIFICATE_DRIVERS;
+	const char *p;
+	certificate_driver_apply ret = NULL;
+
+	if (what == NULL || *what == NULL) {
+		goto cleanup;
+	}
+
+	p = *what;
+	if ((*what = strchr(p, ':')) == NULL) {
+		goto cleanup;
+	}
+	(*what) = '\0';
+	(*what)++;
+
+	for (sd = __CERTIFICATE_DRIVERS; sd->name != NULL; sd++) {
+		if (!strncmp(p, sd->name, strlen(sd->name))) {
+			ret = sd->p;
+			break;
+		}
+	}
+
+cleanup:
+
+	return ret;
+}
+
+static
+void
+__extra_usage() {
+	static const struct pass_s {
+		const char *k;
+		const char *u;
+	} PASS_USAGE[] = {
+		{"pass:string", "read passphrase from string"},
+		{"env:key", "read the passphrase from environment"},
+		{"file:name", "read the passphrase from file"},
+		{"fd:n", "read the passphrase from file descriptor"},
+		{NULL, NULL}
+	};
+	const struct certificate_driver_s *sd;
+	const struct pass_s *pu;
+
+	printf("\nPASSPHRASE_EXPRESSION\n");
+	for (pu = PASS_USAGE; pu->k != NULL; pu++) {
+		printf("%4s%-16s- %s\n", "", pu->k, pu->u);
+	}
+
+	printf("\nCERTIFICATE_EXPRESSION\n%4sdriver:attribute=value:attribute=value\n", "");
+
+	printf("\n%4sAvailable certificate drivers:\n", "");
+	for (sd = __CERTIFICATE_DRIVERS; sd->name != NULL; sd++) {
+		char x[1024];
+		char *p1;
+		char *p2;
+
+		strncpy(x, sd->u(), sizeof(x) - 1);
+		x[sizeof(x) - 1] = '\0';
+
+		printf("%8s%s: attributes:\n", "", sd->name);
+		p1 = x;
+		while (p1 != NULL) {
+			if ((p2 = strchr(p1, '\n')) != NULL) {
+				*p2 = '\0';
+				p2++;
+			}
+			printf("%12s%s\n", "", p1);
+			p1 = p2;
+		}
+	}
+}
+
+static
+int
+__load_cert(
+	const mycms_system system,
+	const char * const file,
+	mycms_blob *blob
+) {
 
 	FILE *fp = NULL;
 	unsigned char * data = NULL;
@@ -38,7 +156,7 @@ static int load_cert(const char * file, mycms_blob *blob) {
 		goto cleanup;
 	}
 
-	if ((data = calloc(1, blob->size)) == NULL) {
+	if ((data = mycms_system_malloc(system, blob->size)) == NULL) {
 		goto cleanup;
 	}
 
@@ -56,21 +174,37 @@ cleanup:
 		fp = NULL;
 	}
 
-	if (data != NULL) {
-		free(data);
-		data = NULL;
-	}
+	mycms_system_free(system, data);
+	data = NULL;
 
 	return ret;
+}
+
+static
+int
+__passphrase_callback(
+	const mycms_certificate certificate,
+	char **p,
+	const size_t size
+) {
+	char *exp = (char *)mycms_certificate_get_userdata(certificate);
+
+	if (exp == NULL) {
+		*p = NULL;
+		return 1;
+	} else {
+		return util_getpass(exp, *p, size);
+	}
 }
 
 #endif
 
 #if defined(ENABLE_CMS_ENCRYPT)
 
-static int cmd_encrypt(int argc, char *argv[]) {
+static int __cmd_encrypt(int argc, char *argv[]) {
 	enum {
 		OPT_HELP = 0x1000,
+		OPT_CIPHER,
 		OPT_CMS_OUT,
 		OPT_DATA_PT,
 		OPT_DATA_CT,
@@ -79,30 +213,46 @@ static int cmd_encrypt(int argc, char *argv[]) {
 	};
 
 	static struct option long_options[] = {
-		{"help", no_argument, NULL, OPT_HELP},
-		{"cms-out", required_argument, NULL, OPT_CMS_OUT},
-		{"data-pt", required_argument, NULL, OPT_DATA_PT},
-		{"data-ct", required_argument, NULL, OPT_DATA_CT},
-		{"to", required_argument, NULL, OPT_TO},
+		{"help\0this usage", no_argument, NULL, OPT_HELP},
+		{"cipher\0CIPHER|cipher to use, default is AES-256-CBC", required_argument, NULL, OPT_CIPHER},
+		{"cms-out\0FILE|output cms", required_argument, NULL, OPT_CMS_OUT},
+		{"data-pt\0FILE|input plain text data", required_argument, NULL, OPT_DATA_PT},
+		{"data-ct\0FILE|output plain text data", required_argument, NULL, OPT_DATA_CT},
+		{"to\0FILE|target DER encoded certificate, may be specified several times", required_argument, NULL, OPT_TO},
 		{NULL, 0, NULL, 0}
 	};
 
+	char optstring[1024];
 	int option;
 	int ret = 1;
 
-	const EVP_CIPHER *cipher = EVP_aes_256_cbc();
-
-	mycms_blob_list to = NULL;
 	BIO *cms_out = NULL;
 	BIO *data_pt = NULL;
 	BIO *data_ct = NULL;
 
-	while ((option = getopt_long(argc, argv, "", long_options, NULL)) != -1) {
+	char _mycms_system[MYCMS_SYSTEM_CONTEXT_SIZE] = {0};
+	mycms_system system = (mycms_system)_mycms_system;
+	mycms mycms = NULL;
+	mycms_list_blob to = NULL;
+	const char *cipher = "AES-256-CBC";
+
+	if (!mycms_system_init(system, sizeof(_mycms_system))) {
+		goto cleanup;
+	}
+
+	if (!getoptutil_short_from_long(long_options, "+", optstring, sizeof(optstring))) {
+		goto cleanup;
+	}
+
+	while ((option = getopt_long(argc, argv, optstring, long_options, NULL)) != -1) {
 		switch (option) {
 			case OPT_HELP:
-				printf("help\n");
+				getoptutil_usage(stdout, argv[0], "encrypt [options]", long_options);
 				ret = 0;
 				goto cleanup;
+			case OPT_CIPHER:
+				cipher = optarg;
+			break;
 			case OPT_CMS_OUT:
 				if ((cms_out = BIO_new_file(optarg, "wb")) == NULL) {
 					ERR_print_errors_fp(stderr);
@@ -123,14 +273,14 @@ static int cmd_encrypt(int argc, char *argv[]) {
 			break;
 			case OPT_TO:
 				{
-					mycms_blob_list t;
+					mycms_list_blob t;
 
-					if ((t = calloc(1, sizeof(*t))) == NULL) {
+					if ((t = mycms_system_zalloc(system, sizeof(*t))) == NULL) {
 						goto cleanup;
 					}
 
-					if (!load_cert(optarg, &t->blob)) {
-						free(t);
+					if (!__load_cert(system, optarg, &t->blob)) {
+						mycms_system_free(system, t);
 						goto cleanup;
 					}
 
@@ -161,8 +311,15 @@ static int cmd_encrypt(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
-	if (mycms_encrypt(cipher, to, cms_out, data_pt, data_ct)) {
-		ERR_print_errors_fp(stderr);
+	if ((mycms = mycms_new(system)) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_construct(mycms)) {
+		goto cleanup;
+	}
+
+	if (!mycms_encrypt(mycms, cipher, to, cms_out, data_pt, data_ct)) {
 		goto cleanup;
 	}
 
@@ -170,68 +327,83 @@ static int cmd_encrypt(int argc, char *argv[]) {
 
 cleanup:
 
-	if (cms_out != NULL) {
-		BIO_free(cms_out);
-		cms_out = NULL;
-	}
+	BIO_free(cms_out);
+	cms_out = NULL;
 
-	if (data_pt != NULL) {
-		BIO_free(data_pt);
-		data_pt = NULL;
-	}
+	BIO_free(data_pt);
+	data_pt = NULL;
 
-	if (data_ct != NULL) {
-		BIO_free(data_ct);
-		data_ct = NULL;
-	}
+	BIO_free(data_ct);
+	data_ct = NULL;
 
 	while(to != NULL) {
-		mycms_blob_list t = to;
+		mycms_list_blob t = to;
 		to = to->next;
 		t->next = NULL;
-		free(t->blob.data);
+		mycms_system_free(system, t->blob.data);
 		t->blob.data = NULL;
-		free(t);
+		mycms_system_free(system, t);
 	}
+
+	mycms_destruct(mycms);
+	mycms = NULL;
+
+	mycms_system_clean(system);
 
 	return ret;
 }
 
 
-static int cmd_encrypt_add(int argc, char *argv[]) {
+static int __cmd_encrypt_add(int argc, char *argv[]) {
 	enum {
 		OPT_HELP = 0x1000,
 		OPT_CMS_IN,
 		OPT_CMS_OUT,
 		OPT_RECIP_CERT,
-		OPT_RECIP_KEY,
+		OPT_RECIP_CERT_PASS,
 		OPT_TO,
 		OPT_MAX
 	};
 
 	static struct option long_options[] = {
-		{"help", no_argument, NULL, OPT_HELP},
-		{"cms-in", required_argument, NULL, OPT_CMS_IN},
-		{"cms-out", required_argument, NULL, OPT_CMS_OUT},
-		{"recip-cert", required_argument, NULL, OPT_RECIP_CERT},
-		{"recip-key", required_argument, NULL, OPT_RECIP_KEY},
-		{"to", required_argument, NULL, OPT_TO},
+		{"help\0this usage", no_argument, NULL, OPT_HELP},
+		{"cms-in\0FILE|input cms", required_argument, NULL, OPT_CMS_IN},
+		{"cms-out\0FILE|output cms", required_argument, NULL, OPT_CMS_OUT},
+		{"recip-cert\0CERTIFICATE_EXPRESSION|recipient certificate to use", required_argument, NULL, OPT_RECIP_CERT},
+		{"recip-cert-pass\0PASSPHRASE_EXPRESSION|recipient certificate passphrase to use", required_argument, NULL, OPT_RECIP_CERT_PASS},
+		{"to\0FILE|target DER encoded certificate, may be specified several times", required_argument, NULL, OPT_TO},
 		{NULL, 0, NULL, 0}
 	};
 
+	char optstring[1024];
 	int option;
 	int ret = 1;
 
+	const char * certificate_exp = NULL;
+	const char * pass_exp = NULL;
 	BIO *cms_in = NULL;
 	BIO *cms_out = NULL;
-	mycms_blob_list to = NULL;
+	mycms_list_blob to = NULL;
 
+	char _mycms_system[MYCMS_SYSTEM_CONTEXT_SIZE] = {0};
+	mycms_system system = (mycms_system)_mycms_system;
+	mycms mycms = NULL;
+	mycms_dict dict = NULL;
 	mycms_certificate certificate = NULL;
 
-	while ((option = getopt_long(argc, argv, "", long_options, NULL)) != -1) {
+	if (!mycms_system_init(system, sizeof(_mycms_system))) {
+		goto cleanup;
+	}
+
+	if (!getoptutil_short_from_long(long_options, "+", optstring, sizeof(optstring))) {
+		goto cleanup;
+	}
+
+	while ((option = getopt_long(argc, argv, optstring, long_options, NULL)) != -1) {
 		switch (option) {
 			case OPT_HELP:
-				printf("help\n");
+				getoptutil_usage(stdout, argv[0], "encrypt-add [options]", long_options);
+				__extra_usage();
 				ret = 0;
 				goto cleanup;
 			case OPT_CMS_IN:
@@ -247,37 +419,21 @@ static int cmd_encrypt_add(int argc, char *argv[]) {
 				}
 			break;
 			case OPT_RECIP_CERT:
-				if (certificate != NULL) {
-					fprintf(stderr, "Recipient already specified\n");
-					goto cleanup;
-				}
-
-				if ((certificate = mycms_certificate_new()) == NULL) {
-					goto cleanup;
-				}
-
-				if (!mycms_certificate_construct(certificate)) {
-					goto cleanup;
-				}
-
-				if (!mycms_certificate_driver_file_apply(certificate)) {
-					goto cleanup;
-				}
-
-				if (!mycms_certificate_load(certificate, optarg)) {
-					goto cleanup;
-				}
+				certificate_exp = optarg;
+			break;
+			case OPT_RECIP_CERT_PASS:
+				pass_exp = optarg;
 			break;
 			case OPT_TO:
 				{
-					mycms_blob_list t;
+					mycms_list_blob t;
 
-					if ((t = calloc(1, sizeof(*t))) == NULL) {
+					if ((t = mycms_system_zalloc(system, sizeof(*t))) == NULL) {
 						goto cleanup;
 					}
 
-					if (!load_cert(optarg, &t->blob)) {
-						free(t);
+					if (!__load_cert(system, optarg, &t->blob)) {
+						mycms_system_free(system, t);
 						goto cleanup;
 					}
 
@@ -295,7 +451,7 @@ static int cmd_encrypt_add(int argc, char *argv[]) {
 		fprintf(stderr, "Unexpected positional options\n");
 		goto cleanup;
 	}
-	if (certificate == NULL) {
+	if (certificate_exp == NULL) {
 		fprintf(stderr, "Certificate is mandatory\n");
 		goto cleanup;
 	}
@@ -312,8 +468,57 @@ static int cmd_encrypt_add(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
-	if (mycms_encrypt_add(certificate, to, cms_in, cms_out)) {
-		ERR_print_errors_fp(stderr);
+	if ((mycms = mycms_new(system)) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_construct(mycms)) {
+		goto cleanup;
+	}
+
+	if ((certificate = mycms_certificate_new(mycms)) == NULL) {
+		goto cleanup;
+	}
+
+	if ((dict = mycms_dict_new(mycms)) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_dict_construct(dict)) {
+		goto cleanup;
+	}
+
+	if (!util_split_string(dict, certificate_exp)) {
+		goto cleanup;
+	}
+
+	if (!mycms_certificate_construct(certificate)) {
+		goto cleanup;
+	}
+
+	if (!mycms_certificate_set_userdata(certificate, pass_exp)) {
+		goto cleanup;
+	}
+
+	if (!mycms_certificate_set_passphrase_callback(certificate, __passphrase_callback)) {
+		goto cleanup;
+	}
+
+	{
+		certificate_driver_apply x;
+		if ((x = __get_certificate_driver(&certificate_exp)) == NULL) {
+			goto cleanup;
+		}
+		if (!x(certificate)) {
+			goto cleanup;
+		}
+	}
+
+	if (!mycms_certificate_load(certificate, dict)) {
+		goto cleanup;
+	}
+
+	if (!mycms_encrypt_add(mycms, certificate, to, cms_in, cms_out)) {
 		goto cleanup;
 	}
 
@@ -321,29 +526,31 @@ static int cmd_encrypt_add(int argc, char *argv[]) {
 
 cleanup:
 
-	if (certificate != NULL) {
-		mycms_certificate_destroy(certificate);
-		certificate = NULL;
-	}
+	mycms_certificate_destruct(certificate);
+	certificate = NULL;
 
-	if (cms_in != NULL) {
-		BIO_free(cms_in);
-		cms_in = NULL;
-	}
+	mycms_dict_destruct(dict);
+	dict = NULL;
 
-	if (cms_out != NULL) {
-		BIO_free(cms_out);
-		cms_out = NULL;
-	}
+	BIO_free(cms_in);
+	cms_in = NULL;
+
+	BIO_free(cms_out);
+	cms_out = NULL;
 
 	while(to != NULL) {
-		mycms_blob_list t = to;
+		mycms_list_blob t = to;
 		to = to->next;
 		t->next = NULL;
-		free(t->blob.data);
+		mycms_system_free(system, t->blob.data);
 		t->blob.data = NULL;
-		free(t);
+		mycms_system_free(system, t);
 	}
+
+	mycms_destruct(mycms);
+	mycms = NULL;
+
+	mycms_system_clean(system);
 
 	return ret;
 }
@@ -352,40 +559,56 @@ cleanup:
 
 #if defined(ENABLE_CMS_DECRYPT)
 
-static int cmd_decrypt(int argc, char *argv[]) {
+static int __cmd_decrypt(int argc, char *argv[]) {
 	enum {
 		OPT_HELP = 0x1000,
 		OPT_CMS_IN,
 		OPT_RECIP_CERT,
-		OPT_RECIP_KEY,
+		OPT_RECIP_CERT_PASS,
 		OPT_DATA_PT,
 		OPT_DATA_CT,
 		OPT_MAX
 	};
 
 	static struct option long_options[] = {
-		{"help", no_argument, NULL, OPT_HELP},
-		{"cms-in", required_argument, NULL, OPT_CMS_IN},
-		{"recip-cert", required_argument, NULL, OPT_RECIP_CERT},
-		{"recip-key", required_argument, NULL, OPT_RECIP_KEY},
-		{"data-pt", required_argument, NULL, OPT_DATA_PT},
-		{"data-ct", required_argument, NULL, OPT_DATA_CT},
+		{"help\0this usage", no_argument, NULL, OPT_HELP},
+		{"cms-in\0FILE|input cms", required_argument, NULL, OPT_CMS_IN},
+		{"recip-cert\0CERTIFICATE_EXPRESSION|recipient certificate to use", required_argument, NULL, OPT_RECIP_CERT},
+		{"recip-cert-pass\0PASSPHRASE_EXPRESSION|recipient certificate passphrase to use", required_argument, NULL, OPT_RECIP_CERT_PASS},
+		{"data-ct\0FILE|input ciphered text data", required_argument, NULL, OPT_DATA_CT},
+		{"data-pt\0FILE|output plain text data", required_argument, NULL, OPT_DATA_PT},
 		{NULL, 0, NULL, 0}
 	};
 
+	char optstring[1024];
 	int option;
 	int ret = 1;
 
+	const char * certificate_exp = NULL;
+	const char * pass_exp = NULL;
 	BIO *cms_in = NULL;
 	BIO *data_pt = NULL;
 	BIO *data_ct = NULL;
 
+	char _mycms_system[MYCMS_SYSTEM_CONTEXT_SIZE] = {0};
+	mycms_system system = (mycms_system)_mycms_system;
+	mycms mycms = NULL;
+	mycms_dict dict = NULL;
 	mycms_certificate certificate = NULL;
 
-	while ((option = getopt_long(argc, argv, "", long_options, NULL)) != -1) {
+	if (!mycms_system_init(system, sizeof(_mycms_system))) {
+		goto cleanup;
+	}
+
+	if (!getoptutil_short_from_long(long_options, "+", optstring, sizeof(optstring))) {
+		goto cleanup;
+	}
+
+	while ((option = getopt_long(argc, argv, optstring, long_options, NULL)) != -1) {
 		switch (option) {
 			case OPT_HELP:
-				printf("help\n");
+				getoptutil_usage(stdout, argv[0], "decrypt [options]", long_options);
+				__extra_usage();
 				ret = 0;
 				goto cleanup;
 			case OPT_CMS_IN:
@@ -395,26 +618,10 @@ static int cmd_decrypt(int argc, char *argv[]) {
 				}
 			break;
 			case OPT_RECIP_CERT:
-				if (certificate != NULL) {
-					fprintf(stderr, "Recipient already specified\n");
-					goto cleanup;
-				}
-
-				if ((certificate = mycms_certificate_new()) == NULL) {
-					goto cleanup;
-				}
-
-				if (!mycms_certificate_construct(certificate)) {
-					goto cleanup;
-				}
-
-				if (!mycms_certificate_driver_file_apply(certificate)) {
-					goto cleanup;
-				}
-
-				if (!mycms_certificate_load(certificate, optarg)) {
-					goto cleanup;
-				}
+				certificate_exp = optarg;
+			break;
+			case OPT_RECIP_CERT_PASS:
+				pass_exp = optarg;
 			break;
 			case OPT_DATA_PT:
 				if ((data_pt = BIO_new_file(optarg, "wb")) == NULL) {
@@ -438,7 +645,7 @@ static int cmd_decrypt(int argc, char *argv[]) {
 		fprintf(stderr, "Unexpected positional options\n");
 		goto cleanup;
 	}
-	if (certificate == NULL) {
+	if (certificate_exp == NULL) {
 		fprintf(stderr, "Certificate is mandatory\n");
 		goto cleanup;
 	}
@@ -446,6 +653,7 @@ static int cmd_decrypt(int argc, char *argv[]) {
 		fprintf(stderr, "In is mandatory\n");
 		goto cleanup;
 	}
+
 	if (data_pt == NULL) {
 		fprintf(stderr, "Data in is mandatory\n");
 		goto cleanup;
@@ -455,8 +663,57 @@ static int cmd_decrypt(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
-	if (mycms_decrypt(certificate, cms_in, data_pt, data_ct)) {
-		ERR_print_errors_fp(stderr);
+	if ((mycms = mycms_new(system)) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_construct(mycms)) {
+		goto cleanup;
+	}
+
+	if ((dict = mycms_dict_new(mycms)) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_dict_construct(dict)) {
+		goto cleanup;
+	}
+
+	if (!util_split_string(dict, certificate_exp)) {
+		goto cleanup;
+	}
+
+	if ((certificate = mycms_certificate_new(mycms)) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_certificate_construct(certificate)) {
+		goto cleanup;
+	}
+
+	if (!mycms_certificate_set_userdata(certificate, pass_exp)) {
+		goto cleanup;
+	}
+
+	if (!mycms_certificate_set_passphrase_callback(certificate, __passphrase_callback)) {
+		goto cleanup;
+	}
+
+	{
+		certificate_driver_apply x;
+		if ((x = __get_certificate_driver(&certificate_exp)) == NULL) {
+			goto cleanup;
+		}
+		if (!x(certificate)) {
+			goto cleanup;
+		}
+	}
+
+	if (!mycms_certificate_load(certificate, dict)) {
+		goto cleanup;
+	}
+
+	if (!mycms_decrypt(mycms, certificate, cms_in, data_pt, data_ct)) {
 		goto cleanup;
 	}
 
@@ -464,25 +721,28 @@ static int cmd_decrypt(int argc, char *argv[]) {
 
 cleanup:
 
-	if (certificate != NULL) {
-		mycms_certificate_destroy(certificate);
-		certificate = NULL;
-	}
+	mycms_certificate_destruct(certificate);
+	certificate = NULL;
 
-	if (cms_in != NULL) {
-		BIO_free(cms_in);
-		cms_in = NULL;
-	}
+	mycms_dict_destruct(dict);
+	dict = NULL;
 
-	if (data_pt != NULL) {
-		BIO_free(data_pt);
-		data_pt = NULL;
-	}
+	mycms_destruct(mycms);
+	mycms = NULL;
 
-	if (data_ct != NULL) {
-		BIO_free(data_ct);
-		data_ct = NULL;
-	}
+	BIO_free(cms_in);
+	cms_in = NULL;
+
+	BIO_free(data_pt);
+	data_pt = NULL;
+
+	BIO_free(data_ct);
+	data_ct = NULL;
+
+	mycms_destruct(mycms);
+	mycms = NULL;
+
+	mycms_system_clean(system);
 
 	return ret;
 }
@@ -492,38 +752,72 @@ cleanup:
 int main(int argc, char *argv[]) {
 	enum {
 		OPT_HELP = 0x1000,
-		OPT_SHOW_COMMANDS,
+		OPT_VERSION,
 		OPT_MAX
 	};
 
+	static struct commands_s {
+		const char *c;
+		const char *m;
+		int (*f)(int argc, char *argv[]);
+	} commands[] = {
+#if defined(ENABLE_CMS_ENCRYPT)
+		{"encrypt", "encrypt data to recipients", __cmd_encrypt},
+		{"encrypt-add", "add recipients to to existing cms", __cmd_encrypt_add},
+#endif
+#if defined(ENABLE_CMS_DECRYPT)
+		{"decrypt", "decrypt cms", __cmd_decrypt},
+#endif
+		{NULL, NULL, NULL}
+	};
+
 	static struct option long_options[] = {
-		{"help", no_argument, NULL, OPT_HELP},
-		{"show-commands", no_argument, NULL, OPT_SHOW_COMMANDS},
+		{"help\0this usage", no_argument, NULL, OPT_HELP},
+		{"version\0print version", no_argument, NULL, OPT_VERSION},
 		{NULL, 0, NULL, 0}
 	};
 
+	char _mycms_system[MYCMS_SYSTEM_CONTEXT_SIZE] = {0};
+	mycms_system system = (mycms_system)_mycms_system;
+	struct commands_s *cmd;
 	const char *command;
+	char optstring[1024];
 	int option;
 	int ret = 1;
 
-	if (!mycms_static_init()) {
+	if (!mycms_system_init(system, sizeof(_mycms_system))) {
+		goto cleanup;
+	}
+
+	if (!mycms_static_init(system)) {
 		fprintf(stderr, "Failed to initialize certificate interface\n");
 		goto cleanup;
 	}
 
-	while ((option = getopt_long(argc, argv, "+", long_options, NULL)) != -1) {
+	if (!getoptutil_short_from_long(long_options, "+", optstring, sizeof(optstring))) {
+		goto cleanup;
+	}
+
+	while ((option = getopt_long(argc, argv, optstring, long_options, NULL)) != -1) {
 		switch (option) {
 			case OPT_HELP:
-				printf("help\n");
+				getoptutil_usage(stdout, argv[0], "command [options]", long_options);
+				printf("\nAvailable commands:\n");
+				for (cmd = commands; cmd->c != NULL; cmd++) {
+					printf("%8s%-16s - %s\n", "", cmd->c, cmd->m);
+				}
 				ret = 0;
 				goto cleanup;
-			case OPT_SHOW_COMMANDS:
-#if defined(ENABLE_CMS_DECRYPT)
-				printf("decrypt\n");
-#endif
-#if defined(ENABLE_CMS_ENCRYPT)
-				printf("encrypt\n");
-#endif
+			case OPT_VERSION:
+				printf("%s-%s\n", PACKAGE_NAME, PACKAGE_VERSION);
+				printf("Features:");
+				{
+					const char **p;
+					for (p = __FEATURES; *p != NULL; p++) {
+						printf(" %s", *p);
+					}
+				}
+				printf("\n");
 				ret = 0;
 				goto cleanup;
 			default:
@@ -539,24 +833,20 @@ int main(int argc, char *argv[]) {
 
 	command = argv[optind++];
 
-	if (0) {
-#if defined(ENABLE_CMS_ENCRYPT)
-	} else if (!strcmp("encrypt", command)) {
-		ret = cmd_encrypt(argc, argv);
-	} else if (!strcmp("encrypt-add", command)) {
-		ret = cmd_encrypt_add(argc, argv);
-#endif
-#if defined(ENABLE_CMS_DECRYPT)
-	} else if (!strcmp("decrypt", command)) {
-		ret = cmd_decrypt(argc, argv);
-#endif
-	} else {
-		fprintf(stderr, "Unknown command '%s'\n", command);
+	for (cmd = commands; cmd->c != NULL; cmd++) {
+		if (!strcmp(command, cmd->c)) {
+			ret = cmd->f(argc, argv);
+			goto cleanup;
+		}
 	}
+
+	fprintf(stderr, "Unknown command '%s'\n", command);
 
 cleanup:
 
 	mycms_static_free();
+
+	mycms_system_clean(system);
 
 	return ret;
 }

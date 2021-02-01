@@ -1,0 +1,2 @@
+directories.tokendir = @TOKENDIR@
+objectstore.backend = file

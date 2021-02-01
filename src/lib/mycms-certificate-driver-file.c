@@ -2,22 +2,20 @@
 #include <config.h>
 #endif
 
-#ifdef ENABLE_CERTIFICATE_DRIVER_FILE
-
 #include <stdlib.h>
 #include <string.h>
 
 #include <openssl/evp.h>
 #include <openssl/x509.h>
 
-#include <mycms-certificate-driver-file.h>
+#include <mycms/mycms-certificate-driver-file.h>
 
-struct mycms_certificate_file_s {
+struct __mycms_certificate_driver_file_s {
 #ifndef OPENSSL_NO_RSA
 	RSA *rsa;
 #endif
 };
-typedef struct mycms_certificate_file_s *mycms_certificate_file;
+typedef struct __mycms_certificate_driver_file_s *__mycms_certificate_driver_file;
 
 static int __convert_padding(const int padding) {
 	int ret;
@@ -42,9 +40,13 @@ static int __convert_padding(const int padding) {
 
 static
 EVP_PKEY *
-__load_pkey(const char *file) {
+__driver_load_pkey(const char *file) {
 	EVP_PKEY *k = NULL;
 	BIO *bio = NULL;
+
+	if (file == NULL) {
+		goto cleanup;
+	}
 
 	if ((bio = BIO_new_file(file, "rb")) == NULL) {
 		goto cleanup;
@@ -56,10 +58,8 @@ __load_pkey(const char *file) {
 
 cleanup:
 
-	if (bio != NULL) {
-		BIO_free(bio);
-		bio = NULL;
-	}
+	BIO_free(bio);
+	bio = NULL;
 
 	return k;
 }
@@ -67,19 +67,39 @@ cleanup:
 #ifndef OPENSSL_NO_RSA
 static
 int
-__driver_file_rsa_private_op(
+__driver_rsa_private_op(
 	const mycms_certificate certificate,
 	const int op,
 	const unsigned char * const from,
 	const size_t from_size,
 	unsigned char * const to,
-	const size_t to_size __attribute__((unused)),
+	const size_t to_size,
 	const int padding
 ) {
-	mycms_certificate_file certificate_file = (mycms_certificate_file)mycms_certificate_get_userdata(certificate);
-	int cpadding;
+	__mycms_certificate_driver_file certificate_file = NULL;
 	const RSA_METHOD *rsa_method = NULL;
+	int cpadding;
 	int ret = -1;
+
+	if ((certificate_file = (__mycms_certificate_driver_file)mycms_certificate_get_driverdata(certificate)) == NULL) {
+		goto cleanup;
+	}
+
+	if (from == NULL) {
+		goto cleanup;
+	}
+
+	if (to == NULL) {
+		goto cleanup;
+	}
+
+	if (from_size == 0) {
+		goto cleanup;
+	}
+
+	if (to_size < from_size) {
+		goto cleanup;
+	}
 
 	if ((cpadding = __convert_padding(padding)) == -1) {
 		goto cleanup;
@@ -106,92 +126,106 @@ cleanup:
 }
 #endif
 
+static
 int
-__driver_file_free(
+__driver_free(
 	const mycms_certificate certificate
 ) {
-	mycms_certificate_file certificate_file = (mycms_certificate_file)mycms_certificate_get_userdata(certificate);
+	mycms_system system = NULL;
+	__mycms_certificate_driver_file certificate_file;
+	int ret = 0;
 
-	int ret = 1;
-
-	if (certificate_file != NULL) {
-		#ifndef OPENSSL_NO_RSA
-			if (certificate_file->rsa != NULL) {
-				RSA_free(certificate_file->rsa);
-				certificate_file->rsa = NULL;
-			}
-		#endif
-		free(certificate_file);
+	if ((system = mycms_certificate_get_system(certificate)) == NULL) {
+		goto cleanup;
 	}
+
+	if ((certificate_file = (__mycms_certificate_driver_file)mycms_certificate_get_driverdata(certificate)) == NULL) {
+		goto cleanup;
+	}
+
+#ifndef OPENSSL_NO_RSA
+	RSA_free(certificate_file->rsa);
+	certificate_file->rsa = NULL;
+#endif
+
+	if (!mycms_system_free(system, certificate_file)) {
+		goto cleanup;
+	}
+
+	ret = 1;
+
+cleanup:
 
 	return ret;
 }
 
 static
 int
-__driver_file_load(
+__driver_load(
 	const mycms_certificate certificate,
-	const char * const what
+	const mycms_dict parameters
 ) {
-	mycms_certificate_file certificate_file = NULL;
+	mycms_system system = NULL;
+	__mycms_certificate_driver_file certificate_file = NULL;
 
 	EVP_PKEY *evp = NULL;
+	BIO *bio_in = NULL;
+	BIO *bio_out = NULL;
 
+	const char *cert_file;
+	const char *key_file;
+	mycms_blob blob;
 	int ret = 0;
-	char *work = NULL;
-	char *p;
-	char *cert_file;
-	char *key_file;
-	FILE *fp = NULL;
-	mycms_blob blob = {NULL, 0};
 
-	if ((work = strdup(what)) == NULL) {
+	if (certificate == NULL) {
 		goto cleanup;
 	}
 
-	p = work;
-	cert_file = p;
-	if ((p = strchr(p, ':')) == NULL) {
-		goto cleanup;
-	}
-	*p = '\0';
-	p++;
-	key_file = p;
-	if ((p = strchr(p, ':')) != NULL) {
-		*p = '\0';
-	}
-
-	if ((fp = fopen(cert_file, "rb")) == NULL) {
+	if (parameters == NULL) {
 		goto cleanup;
 	}
 
-	if (fseek(fp, 0L, SEEK_END) != 0) {
+	if ((system = mycms_certificate_get_system(certificate)) == NULL) {
 		goto cleanup;
 	}
+
+	if ((cert_file = mycms_dict_entry_get(parameters, "cert", NULL)) == NULL) {
+		goto cleanup;
+	}
+
+	if ((key_file = mycms_dict_entry_get(parameters, "key", NULL)) == NULL) {
+		goto cleanup;
+	}
+
+	if ((bio_in = BIO_new_file(cert_file, "rb")) == NULL) {
+		goto cleanup;
+	}
+
+	if ((bio_out = BIO_new(BIO_s_mem())) == NULL) {
+		goto cleanup;
+	}
+
 	{
-		long l;
-		if ((l = ftell(fp)) == -1) {
+		unsigned char buffer[1024];
+		int n;
+
+		while ((n = BIO_read(bio_in, buffer, sizeof(buffer))) > 0) {
+			if (BIO_write(bio_out, buffer, n) != n) {
+				goto cleanup;
+			}
+		}
+		if (n != 0) {
 			goto cleanup;
 		}
-		blob.size = l;
 	}
-	if (fseek(fp, 0L, SEEK_SET) != 0) {
+
+	blob.size = BIO_get_mem_data(bio_out, &blob.data);
+
+	if ((evp = __driver_load_pkey(key_file)) == NULL) {
 		goto cleanup;
 	}
 
-	if ((blob.data = calloc(1, blob.size)) == NULL) {
-		goto cleanup;
-	}
-
-	if (fread(blob.data, blob.size, 1, fp) != 1) {
-		goto cleanup;
-	}
-
-	if ((evp = __load_pkey(key_file)) == NULL) {
-		goto cleanup;
-	}
-
-	if ((certificate_file = calloc(1, sizeof(struct mycms_certificate_file_s))) == NULL) {
+	if ((certificate_file = mycms_system_zalloc(system, sizeof(*certificate_file))) == NULL) {
 		goto cleanup;
 	}
 
@@ -207,7 +241,7 @@ __driver_file_load(
 			goto cleanup;
 	}
 
-	if (!mycms_certificate_set_userdata(certificate, certificate_file)) {
+	if (!mycms_certificate_set_driverdata(certificate, certificate_file)) {
 		goto cleanup;
 	}
 	certificate_file = NULL;
@@ -219,49 +253,60 @@ __driver_file_load(
 	ret = 1;
 
 cleanup:
-	if (blob.data != NULL) {
-		free(blob.data);
-		blob.data = NULL;
-	}
+	BIO_free(bio_in);
+	bio_in = NULL;
 
-	if (fp != NULL) {
-		fclose(fp);
-		fp = NULL;
-	}
+	BIO_free(bio_out);
+	bio_out = NULL;
 
-	if (work != NULL) {
-		free(work);
-		work = NULL;
-	}
-
-	if (evp != NULL) {
-		EVP_PKEY_free(evp);
-		evp = NULL;
-	}
+	EVP_PKEY_free(evp);
+	evp = NULL;
 
 	if (certificate_file != NULL) {
 #ifndef OPENSSL_NO_RSA
-		if (certificate_file->rsa != NULL) {
-			RSA_free(certificate_file->rsa);
-			certificate_file->rsa = NULL;
-		}
+		RSA_free(certificate_file->rsa);
+		certificate_file->rsa = NULL;
 #endif
-		free(certificate_file);
+		mycms_system_free(system, certificate_file);
 		certificate_file = NULL;
 	}
 
 	return ret;
 }
 
+const char *
+mycms_certificate_driver_file_usage(void) {
+	return (
+		"cert: DER encoded certificate file\n"
+		"key: DER encoded PKCS#8 file\n"
+	);
+}
+
 int mycms_certificate_driver_file_apply(
 	const mycms_certificate certificate
 ) {
-	mycms_certificate_set_driver_free(certificate, __driver_file_free);
-	mycms_certificate_set_driver_load(certificate, __driver_file_load);
-#ifndef OPENSSL_NO_RSA
-	mycms_certificate_set_driver_rsa_private_op(certificate, __driver_file_rsa_private_op);
-#endif
-	return 1;
-}
+	int ret = 0;
 
+	if (certificate == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_certificate_set_driver_free(certificate, __driver_free)) {
+		goto cleanup;
+	}
+
+	if (!mycms_certificate_set_driver_load(certificate, __driver_load)) {
+		goto cleanup;
+	}
+
+#ifndef OPENSSL_NO_RSA
+	if (!mycms_certificate_set_driver_rsa_private_op(certificate, __driver_rsa_private_op)) {
+		goto cleanup;
+	}
 #endif
+	ret = 1;
+
+cleanup:
+
+	return ret;
+}

@@ -14,7 +14,11 @@ AM_CPPFLAGS = \
 	$(NULL)
 
 mycms_tool_SOURCES = \
+	getoptutil.c \
+	getoptutil.h \
 	main.c \
+	util.c \
+	util.h \
 	$(NULL)
 mycms_tool_LDADD = \
 	$(builddir)/../lib/libmycms.la \

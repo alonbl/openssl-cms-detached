@@ -11,17 +11,19 @@ CLEANFILES = \
 
 MYCMS_EXPORTS = \
 	mycms-certificate-driver-file.exports \
+	mycms-certificate-driver-pkcs11.exports \
 	mycms-certificate.exports \
-	mycms.exports \
 	mycms-decrypt.exports \
+	mycms-dict.exports \
 	mycms-encrypt.exports \
+	mycms-system.exports \
+	mycms.exports \
 	$(NULL)
 
-dist_noinst_DATA= \
+dist_noinst_DATA = \
 	$(MYCMS_EXPORTS) \
 	$(NULL)
 
-BUILT_SOURCES = mycms-all.exports
 pkgconfig_DATA = libmycms.pc
 lib_LTLIBRARIES = libmycms.la
 
@@ -32,22 +34,42 @@ AM_CPPFLAGS = \
 	-I$(top_srcdir)/include \
 	$(NULL)
 
-nodist_libmycms_la_SOURCES= \
-	mycms-decrypt.exports \
-	mycms-encrypt.exports \
+libmycms_la_DEPENDENCIES = \
+	mycms-all.exports \
 	$(NULL)
-libmycms_la_SOURCES= \
-	mycms-certificate-driver-file.c \
+libmycms_la_SOURCES = \
 	mycms-certificate-private.h \
 	mycms-certificate.c \
-	mycms-decrypt.c \
-	mycms-encrypt.c \
+	mycms-dict.c \
+	mycms-private.h \
+	mycms-system.c \
 	mycms.c \
 	$(NULL)
+if ENABLE_CMS_ENCRYPT
+libmycms_la_SOURCES += \
+	mycms-encrypt.c \
+	$(NULL)
+endif
+if ENABLE_CMS_DECRYPT
+libmycms_la_SOURCES += \
+	mycms-decrypt.c \
+	$(NULL)
+endif
+if ENABLE_CERTIFICATE_DRIVER_FILE
+libmycms_la_SOURCES += \
+	mycms-certificate-driver-file.c \
+	$(NULL)
+endif
+if ENABLE_CERTIFICATE_DRIVER_PKCS11
+libmycms_la_SOURCES += \
+	mycms-certificate-driver-pkcs11.c \
+	pkcs11.h \
+	$(NULL)
+endif
 libmycms_la_LIBADD = \
 	$(OPENSSL_LIBS) \
 	$(NULL)
-libmycms_la_LDFLAGS= \
+libmycms_la_LDFLAGS = \
 	$(AM_LDFLAGS) \
 	-version-info @LIBMYCMS_LT_CURRENT@:@LIBMYCMS_LT_REVISION@:@LIBMYCMS_LT_AGE@ \
 	-export-symbols "mycms-all.exports" \
@@ -59,8 +81,11 @@ mycms-all.exports: \
 		$(top_builddir)/Makefile \
 		$(MYCMS_EXPORTS) \
 		$(NULL)
-	cat "$(srcdir)/mycms.exports" > mycms-all.exports.tmp
+	rm -f mycms-all.exports.tmp
 	cat "$(srcdir)/mycms-certificate.exports" >> mycms-all.exports.tmp
+	cat "$(srcdir)/mycms-dict.exports" >> mycms-all.exports.tmp
+	cat "$(srcdir)/mycms-system.exports" >> mycms-all.exports.tmp
+	cat "$(srcdir)/mycms.exports" >> mycms-all.exports.tmp
 if ENABLE_CMS_DECRYPT
 	cat "$(srcdir)/mycms-decrypt.exports" >> mycms-all.exports.tmp
 endif
@@ -69,5 +94,8 @@ if ENABLE_CMS_ENCRYPT
 endif
 if ENABLE_CERTIFICATE_DRIVER_FILE
 	cat "$(srcdir)/mycms-certificate-driver-file.exports" >> mycms-all.exports.tmp
+endif
+if ENABLE_CERTIFICATE_DRIVER_PKCS11
+	cat "$(srcdir)/mycms-certificate-driver-pkcs11.exports" >> mycms-all.exports.tmp
 endif
 	mv mycms-all.exports.tmp mycms-all.exports

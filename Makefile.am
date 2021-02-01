@@ -1,5 +1,5 @@
 AUTOMAKE_OPTIONS = foreign dist-bzip2 1.10
-ACLOCAL_AMFLAGS = -I m4
+ACLOCAL_AMFLAGS = -I m4 --install
 
 MAINTAINERCLEANFILES = \
 	config.log config.status \

@@ -1,15 +1,15 @@
 AC_PREREQ(2.60)
 
-define([PACKAGE_VERSION_MAJOR], [1])
-define([PACKAGE_VERSION_MINOR], [28])
+define([PACKAGE_VERSION_MAJOR], [0])
+define([PACKAGE_VERSION_MINOR], [0])
 define([PACKAGE_VERSION_FIX], [0])
 define([PACKAGE_SUFFIX], [_master])
 
 AC_INIT([mycms],[PACKAGE_VERSION_MAJOR.PACKAGE_VERSION_MINOR.PACKAGE_VERSION_FIX[]PACKAGE_SUFFIX])
 AC_CONFIG_AUX_DIR([.])
 AC_CONFIG_HEADERS([config.h])
-AC_CONFIG_MACRO_DIR([m4])
-AC_CONFIG_SRCDIR([include/mycms.h])
+AC_CONFIG_MACRO_DIRS([m4])
+AC_CONFIG_SRCDIR([include/mycms/mycms.h])
 AM_INIT_AUTOMAKE
 
 MYCMS_VERSION_MAJOR="PACKAGE_VERSION_MAJOR"
@@ -83,11 +83,11 @@ AC_ARG_ENABLE(
 	[enable_certificate_driver_file="yes"]
 )
 
-AC_ARG_WITH(
-	[test-provider],
-	[AS_HELP_STRING([--with-test-provider=lib],[specify providers for test phase])],
-	[AC_DEFINE_UNQUOTED([TEST_PROVIDER], ["${withval}"], [Test provider])],
-	[AC_DEFINE_UNQUOTED([TEST_PROVIDER], ["/usr/lib/pkcs11/provider.so"], [Test provider])]
+AC_ARG_ENABLE(
+	[certificate-driver-pkcs11],
+	[AS_HELP_STRING([--disable-certificate-driver-pkcs11],[disable certificate pkcs11 driver support])],
+	,
+	[enable_certificate_driver_pkcs11="yes"]
 )
 
 AC_PROG_CC
@@ -96,12 +96,31 @@ PKG_PROG_PKG_CONFIG
 LT_INIT
 
 if test "${enable_all_static}" = "yes"; then
-	PKG_CHECK_MODULES_STATIC(
-		[OPENSSL],
-		[libcrypto >= 1.1.0],
-		,
-		[AC_MSG_ERROR([Cannot locate openssl])]
+	ifdef(
+		[PKG_CHECK_MODULES_STATIC],
+		[PKG_CHECK_MODULES_STATIC(
+			[OPENSSL],
+			[libcrypto >= 1.1.0],
+			,
+			[AC_MSG_ERROR([Cannot locate openssl])]
+		)],
+		[
+			# Old pkg.m4 hack
+			saved_PKG_CONFIG="${PKG_CONFIG}"
+			PKG_CONFIG="${PKG_CONFIG} --static"
+			PKG_CHECK_MODULES(
+				[OPENSSL],
+				[libcrypto >= 1.1.0],
+				,
+				[AC_MSG_ERROR([Cannot locate openssl])]
+			)
+			PKG_CONFIG="${saved_PKG_CONFIG}"
+		]
 	)
+	# Fix segmentation error per pthread_setspecific is linked but pthread_mutex_lock is not
+	if echo "${OPENSSL_LIBS}" | grep -q pthread; then
+		OPENSSL_LIBS="${OPENSSL_LIBS} -Wl,-u,pthread_mutex_lock -Wl,-u,pthread_mutex_unlock"
+	fi
 else
 	PKG_CHECK_MODULES(
 		[OPENSSL],
@@ -110,9 +129,6 @@ else
 		[AC_MSG_ERROR([Cannot locate openssl])]
 	)
 fi
-
-test "${enable_tool}" = "yes" -a "${enable_certificate_driver_file}" != "yes" && \
-	AC_MSG_ERROR([Tool requires file certificate driver])
 
 if test "${enable_pedantic}" = "yes"; then
 	enable_strict="yes"
@@ -129,6 +145,10 @@ AC_C_INLINE
 AC_C_VOLATILE
 AC_TYPE_SIZE_T
 
+AC_ARG_VAR([PKCS11_TOOL], [path to pkcs11-tool utility])
+AC_CHECK_PROGS([PKCS11_TOOL], [pkcs11-tool])
+AC_ARG_VAR([SOFTHSM2_UTIL], [path to softhsm2-util utility])
+AC_CHECK_PROGS([SOFTHSM2_UTIL], [softhsm2-util])
 AC_ARG_VAR([VALGRIND], [path to valgrind utility])
 AC_CHECK_PROGS([VALGRIND], [valgrind])
 
@@ -139,7 +159,11 @@ test "${enable_tool}" = "yes" && AC_DEFINE([ENABLE_TOOL], [1], [Enable tool])
 test "${enable_openssl_err_strings}" = "yes" && AC_DEFINE([ENABLE_OPENSSL_ERR_STRINGS], [1], [Enable openssl error strings])
 test "${enable_cms_decrypt}" = "yes" && AC_DEFINE([ENABLE_CMS_DECRYPT], [1], [Enable cms decrypt])
 test "${enable_cms_encrypt}" = "yes" && AC_DEFINE([ENABLE_CMS_ENCRYPT], [1], [Enable cms encrypt])
-test "${enable_certificate_driver_file}" = "yes" && AC_DEFINE([ENABLE_CERTIFICATE_DRIVER_FILE], [1], [Enable cms certificate file encrypt])
+test "${enable_certificate_driver_file}" = "yes" && AC_DEFINE([ENABLE_CERTIFICATE_DRIVER_FILE], [1], [Enable cms certificate file driver])
+if test "${enable_certificate_driver_pkcs11}" = "yes"; then
+	AC_DEFINE([ENABLE_CERTIFICATE_DRIVER_PKCS11], [1], [Enable cms pkcs11 file driver])
+	AC_CHECK_LIB([dl], [dlopen])
+fi
 
 pkgconfigdir="\$(libdir)/pkgconfig"
 mycmsincludedir="\$(includedir)/mycms"
@@ -153,9 +177,11 @@ AM_CONDITIONAL([ENABLE_TOOL], [test "${enable_tool}" = "yes"])
 AM_CONDITIONAL([ENABLE_CMS_DECRYPT], [test "${enable_cms_decrypt}" = "yes"])
 AM_CONDITIONAL([ENABLE_CMS_ENCRYPT], [test "${enable_cms_encrypt}" = "yes"])
 AM_CONDITIONAL([ENABLE_CERTIFICATE_DRIVER_FILE], [test "${enable_certificate_driver_file}" = "yes"])
+AM_CONDITIONAL([ENABLE_CERTIFICATE_DRIVER_PKCS11], [test "${enable_certificate_driver_pkcs11}" = "yes"])
 AC_CONFIG_FILES([
 	Makefile
 	include/Makefile
+	include/mycms/Makefile
 	src/Makefile
 	src/lib/Makefile
 	src/lib/libmycms.pc

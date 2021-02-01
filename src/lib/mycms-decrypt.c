@@ -2,15 +2,14 @@
 #include <config.h>
 #endif
 
-#if defined(ENABLE_CMS_DECRYPT)
-
 #include <openssl/cms.h>
 
-#include <mycms.h>
+#include <mycms/mycms.h>
 
 #include "mycms-certificate-private.h"
 
 int mycms_decrypt(
+	mycms mycms __attribute__((unused)),
 	const mycms_certificate certificate,
 	BIO *cms_in,
 	BIO *data_pt,
@@ -18,8 +17,27 @@ int mycms_decrypt(
 ) {
 	CMS_ContentInfo *cms = NULL;
 	int flags = CMS_BINARY | CMS_DETACHED;
+	int ret = 0;
 
-	int ret = 1;
+	if (mycms == NULL) {
+		goto cleanup;
+	}
+
+	if (certificate == NULL) {
+		goto cleanup;
+	}
+
+	if (cms_in == NULL) {
+		goto cleanup;
+	}
+
+	if (data_pt == NULL) {
+		goto cleanup;
+	}
+
+	if (data_ct == NULL) {
+		goto cleanup;
+	}
 
 	if ((cms = d2i_CMS_bio(cms_in, NULL)) == NULL) {
 		goto cleanup;
@@ -33,16 +51,12 @@ int mycms_decrypt(
 		goto cleanup;
 	}
 
-	ret = 0;
+	ret = 1;
 
 cleanup:
 
-	if (cms != NULL ) {
-		CMS_ContentInfo_free(cms);
-		cms = NULL;
-	}
+	CMS_ContentInfo_free(cms);
+	cms = NULL;
 
 	return ret;
 }
-
-#endif

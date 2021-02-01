@@ -2,25 +2,24 @@
 #include <config.h>
 #endif
 
-#if defined(ENABLE_CMS_ENCRYPT)
-
 #include <openssl/cms.h>
 #include <openssl/x509.h>
 
-#include <mycms.h>
-#include <mycms-certificate-private.h>
+#include <mycms/mycms.h>
+
+#include "mycms-certificate-private.h"
 
 static
 STACK_OF(CMS_RecipientInfo) *
 __add_recepients(
 	CMS_ContentInfo *cms,
-	const mycms_blob_list to,
+	const mycms_list_blob to,
 	int flags
 ) {
 	STACK_OF(CMS_RecipientInfo) *ret = NULL;
 	STACK_OF(CMS_RecipientInfo) *added = NULL;
 	X509 *x509 = NULL;
-	mycms_blob_list t;
+	mycms_list_blob t;
 
 	if ((added = sk_CMS_RecipientInfo_new_null()) == NULL) {
 		goto cleanup;
@@ -58,32 +57,59 @@ __add_recepients(
 	added = NULL;
 
 cleanup:
-	if (x509 != NULL) {
-		X509_free(x509);
-	}
+	X509_free(x509);
+	x509 = NULL;
 
-	if (added != NULL) {
-		sk_CMS_RecipientInfo_free(added);
-		added = NULL;
-	}
+	sk_CMS_RecipientInfo_free(added);
+	added = NULL;
 
 	return ret;
 }
 
-int mycms_encrypt(
-	const EVP_CIPHER *cipher,
-	const mycms_blob_list to,
+int
+mycms_encrypt(
+	mycms mycms,
+	const char * const cipher,
+	const mycms_list_blob to,
 	BIO *cms_out,
 	BIO *data_pt,
 	BIO *data_ct
 ) {
 	STACK_OF(CMS_RecipientInfo) *added = NULL;
+	const EVP_CIPHER *c = NULL;
 	CMS_ContentInfo *cms = NULL;
 	int flags = CMS_BINARY | CMS_DETACHED | CMS_PARTIAL | CMS_USE_KEYID;
+	int ret = 0;
 
-	int ret = 1;
+	if (mycms == NULL) {
+		goto cleanup;
+	}
 
-	if ((cms = CMS_encrypt(NULL, NULL, cipher, flags)) == NULL) {
+	if (cipher == NULL) {
+		goto cleanup;
+	}
+
+	if (to == NULL) {
+		goto cleanup;
+	}
+
+	if (cms_out == NULL) {
+		goto cleanup;
+	}
+
+	if (data_pt == NULL) {
+		goto cleanup;
+	}
+
+	if (data_ct == NULL) {
+		goto cleanup;
+	}
+
+	if ((c = EVP_get_cipherbyname("AES-256-CBC")) == NULL) {
+		goto cleanup;
+	}
+
+	if ((cms = CMS_encrypt(NULL, NULL, c, flags)) == NULL) {
 		goto cleanup;
 	}
 
@@ -99,35 +125,51 @@ int mycms_encrypt(
 		goto cleanup;
 	}
 
-	ret = 0;
+	ret = 1;
 
 cleanup:
 
-	if (added != NULL) {
-		sk_CMS_RecipientInfo_free(added);
-		added = NULL;
-	}
+	sk_CMS_RecipientInfo_free(added);
+	added = NULL;
 
-	if (cms != NULL ) {
-		CMS_ContentInfo_free(cms);
-		cms = NULL;
-	}
+	CMS_ContentInfo_free(cms);
+	cms = NULL;
 
 	return ret;
 }
 
 int mycms_encrypt_add(
+	mycms mycms,
 	const mycms_certificate certificate,
-	const mycms_blob_list to,
+	const mycms_list_blob to,
 	BIO *cms_in,
 	BIO *cms_out
 ) {
 	STACK_OF(CMS_RecipientInfo) *added = NULL;
 	CMS_ContentInfo *cms = NULL;
 	int flags = CMS_BINARY | CMS_DETACHED | CMS_PARTIAL | CMS_USE_KEYID;
-
-	int ret = 1;
+	int ret = 0;
 	int i;
+
+	if (mycms == NULL) {
+		goto cleanup;
+	}
+
+	if (certificate == NULL) {
+		goto cleanup;
+	}
+
+	if (to == NULL) {
+		goto cleanup;
+	}
+
+	if (cms_in == NULL) {
+		goto cleanup;
+	}
+
+	if (cms_out == NULL) {
+		goto cleanup;
+	}
 
 	if ((cms = d2i_CMS_bio(cms_in, NULL)) == NULL) {
 		goto cleanup;
@@ -157,21 +199,15 @@ int mycms_encrypt_add(
 		goto cleanup;
 	}
 
-	ret = 0;
+	ret = 1;
 
 cleanup:
 
-	if (added != NULL) {
-		sk_CMS_RecipientInfo_free(added);
-		added = NULL;
-	}
+	sk_CMS_RecipientInfo_free(added);
+	added = NULL;
 
-	if (cms != NULL ) {
-		CMS_ContentInfo_free(cms);
-		cms = NULL;
-	}
+	CMS_ContentInfo_free(cms);
+	cms = NULL;
 
 	return ret;
 }
-
-#endif

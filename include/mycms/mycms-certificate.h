@@ -3,7 +3,10 @@
 
 #include <stdlib.h>
 
+#include "mycms-base.h"
 #include "mycms-blob.h"
+#include "mycms-dict.h"
+#include "mycms-system.h"
 
 #define MYCMS_PRIVATE_OP_ENCRYPT 0
 #define MYCMS_PRIVATE_OP_DECRYPT 1
@@ -22,7 +25,7 @@ typedef int (*mycms_certificate_driver_free)(
 
 typedef int (*mycms_certificate_driver_load)(
 	const mycms_certificate certificate,
-	const char * const what
+	const mycms_dict dict
 );
 
 typedef int (*mycms_certificate_driver_rsa_private_op)(
@@ -35,8 +38,16 @@ typedef int (*mycms_certificate_driver_rsa_private_op)(
 	const int padding
 );
 
+typedef int (*mycms_certificate_passphrase_callback)(
+	const mycms_certificate certificate,
+	char **p,
+	const size_t size
+);
+
 mycms_certificate
-mycms_certificate_new(void);
+mycms_certificate_new(
+	const mycms mycms
+);
 
 int
 mycms_certificate_construct(
@@ -44,11 +55,21 @@ mycms_certificate_construct(
 );
 
 int
-mycms_certificate_destroy(
+mycms_certificate_destruct(
 	const mycms_certificate certificate
 );
 
-void *
+mycms
+mycms_certificate_get_mycms(
+	const mycms_certificate certificate
+);
+
+mycms_system
+mycms_certificate_get_system(
+	const mycms_certificate certificate
+);
+
+const void *
 mycms_certificate_get_userdata(
 	const mycms_certificate certificate
 );
@@ -56,7 +77,18 @@ mycms_certificate_get_userdata(
 int
 mycms_certificate_set_userdata(
 	const mycms_certificate certificate,
-	void *userdata
+	const void *userdata
+);
+
+const void *
+mycms_certificate_get_driverdata(
+	const mycms_certificate certificate
+);
+
+int
+mycms_certificate_set_driverdata(
+	const mycms_certificate certificate,
+	const void *userdata
 );
 
 int
@@ -78,6 +110,12 @@ mycms_certificate_set_driver_rsa_private_op(
 );
 
 int
+mycms_certificate_set_passphrase_callback(
+	const mycms_certificate certificate,
+	const mycms_certificate_passphrase_callback passphrase_callback
+);
+
+int
 mycms_certificate_apply_certificate(
 	const mycms_certificate certificate,
 	const mycms_blob *blob
@@ -86,7 +124,14 @@ mycms_certificate_apply_certificate(
 int
 mycms_certificate_load(
 	const mycms_certificate certificate,
-	const char * const what
+	const mycms_dict parameters
+);
+
+int
+mycms_certificate_aquire_passphrase(
+	const mycms_certificate certificate,
+	char **p,
+	const size_t size
 );
 
 #endif
