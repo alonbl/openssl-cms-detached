@@ -7,9 +7,6 @@
 
 #include "mycms-certificate.h"
 
-struct mycms_s;
-typedef struct mycms_s *mycms;
-
 int
 mycms_static_init(void);
 
@@ -17,25 +14,24 @@ int
 mycms_static_free(void);
 
 mycms
-mycms_create();
+mycms_new(void);
 
 int
-mycms_initialize(
-	const mycms cms
-);
+mycms_construct(mycms m);
 
 int
-mycms_destroy(
-	const mycms cms
-);
+mycms_destroy(mycms m);
 
-int
-mycms_set_certificate(
-	const mycms cms,
-	const mycms_certificate certificate
+int mycms_decrypt(
+	const mycms mycms,
+	const mycms_certificate certificate,
+	BIO *cms_in,
+	BIO *data_pt,
+	BIO *data_ct
 );
 
 int mycms_encrypt(
+	const mycms mycms,
 	const EVP_CIPHER *cipher,
 	const mycms_blob_list to,
 	BIO *cms_out,
@@ -44,17 +40,11 @@ int mycms_encrypt(
 );
 
 int mycms_encrypt_add(
+	const mycms mycms,
 	const mycms_certificate certificate,
 	const mycms_blob_list to,
 	BIO *cms_in,
 	BIO *cms_out
-);
-
-int mycms_decrypt(
-	const mycms_certificate certificate,
-	BIO *cms_in,
-	BIO *data_pt,
-	BIO *data_ct
 );
 
 #endif

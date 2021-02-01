@@ -10,6 +10,7 @@
 #include <mycms-certificate-driver-file.h>
 
 struct mycms_certificate_s {
+	mycms mycms;
 	void *userdata;
 	mycms_certificate_driver_free driver_free;
 	mycms_certificate_driver_load driver_load;
@@ -241,13 +242,21 @@ _mycms_certificate_static_free(void) {
 }
 
 mycms_certificate
-mycms_certificate_new(void) {
-	return OPENSSL_zalloc(sizeof(struct mycms_certificate_s));
+mycms_certificate_new(
+	const mycms mycms
+) {
+	mycms_certificate certificate = NULL;
+
+	if ((certificate = OPENSSL_zalloc(sizeof(struct mycms_certificate_s))) != NULL) {
+		certificate->mycms = mycms;
+	}
+
+	return certificate;
 }
 
 int
 mycms_certificate_construct(
-	const mycms_certificate certificate __attribute__((unused))
+	const mycms_certificate certificate
 ) {
 	return 1;
 }

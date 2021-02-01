@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 
+#include "mycms-base.h"
 #include "mycms-blob.h"
 
 #define MYCMS_PRIVATE_OP_ENCRYPT 0
@@ -36,7 +37,9 @@ typedef int (*mycms_certificate_driver_rsa_private_op)(
 );
 
 mycms_certificate
-mycms_certificate_new(void);
+mycms_certificate_new(
+	const mycms mycms
+);
 
 int
 mycms_certificate_construct(

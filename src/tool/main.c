@@ -92,10 +92,20 @@ static int cmd_encrypt(int argc, char *argv[]) {
 
 	const EVP_CIPHER *cipher = EVP_aes_256_cbc();
 
-	mycms_blob_list to = NULL;
 	BIO *cms_out = NULL;
 	BIO *data_pt = NULL;
 	BIO *data_ct = NULL;
+
+	mycms mycms = NULL;
+	mycms_blob_list to = NULL;
+
+	if ((mycms = mycms_new()) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_construct(mycms)) {
+		goto cleanup;
+	}
 
 	while ((option = getopt_long(argc, argv, "", long_options, NULL)) != -1) {
 		switch (option) {
@@ -161,7 +171,7 @@ static int cmd_encrypt(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
-	if (mycms_encrypt(cipher, to, cms_out, data_pt, data_ct)) {
+	if (mycms_encrypt(mycms, cipher, to, cms_out, data_pt, data_ct)) {
 		ERR_print_errors_fp(stderr);
 		goto cleanup;
 	}
@@ -169,6 +179,11 @@ static int cmd_encrypt(int argc, char *argv[]) {
 	ret = 0;
 
 cleanup:
+
+	if (mycms != NULL) {
+		mycms_destroy(mycms);
+		mycms = NULL;
+	}
 
 	if (cms_out != NULL) {
 		BIO_free(cms_out);
@@ -224,7 +239,16 @@ static int cmd_encrypt_add(int argc, char *argv[]) {
 	BIO *cms_out = NULL;
 	mycms_blob_list to = NULL;
 
+	mycms mycms = NULL;
 	mycms_certificate certificate = NULL;
+
+	if ((mycms = mycms_new()) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_construct(mycms)) {
+		goto cleanup;
+	}
 
 	while ((option = getopt_long(argc, argv, "", long_options, NULL)) != -1) {
 		switch (option) {
@@ -250,7 +274,7 @@ static int cmd_encrypt_add(int argc, char *argv[]) {
 					goto cleanup;
 				}
 
-				if ((certificate = mycms_certificate_new()) == NULL) {
+				if ((certificate = mycms_certificate_new(mycms)) == NULL) {
 					goto cleanup;
 				}
 
@@ -310,7 +334,7 @@ static int cmd_encrypt_add(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
-	if (mycms_encrypt_add(certificate, to, cms_in, cms_out)) {
+	if (mycms_encrypt_add(mycms, certificate, to, cms_in, cms_out)) {
 		ERR_print_errors_fp(stderr);
 		goto cleanup;
 	}
@@ -322,6 +346,11 @@ cleanup:
 	if (certificate != NULL) {
 		mycms_certificate_destroy(certificate);
 		certificate = NULL;
+	}
+
+	if (mycms != NULL) {
+		mycms_destroy(mycms);
+		mycms = NULL;
 	}
 
 	if (cms_in != NULL) {
@@ -376,7 +405,16 @@ static int cmd_decrypt(int argc, char *argv[]) {
 	BIO *data_pt = NULL;
 	BIO *data_ct = NULL;
 
+	mycms mycms = NULL;
 	mycms_certificate certificate = NULL;
+
+	if ((mycms = mycms_new()) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_construct(mycms)) {
+		goto cleanup;
+	}
 
 	while ((option = getopt_long(argc, argv, "", long_options, NULL)) != -1) {
 		switch (option) {
@@ -396,7 +434,7 @@ static int cmd_decrypt(int argc, char *argv[]) {
 					goto cleanup;
 				}
 
-				if ((certificate = mycms_certificate_new()) == NULL) {
+				if ((certificate = mycms_certificate_new(mycms)) == NULL) {
 					goto cleanup;
 				}
 
@@ -451,7 +489,7 @@ static int cmd_decrypt(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
-	if (mycms_decrypt(certificate, cms_in, data_pt, data_ct)) {
+	if (mycms_decrypt(mycms, certificate, cms_in, data_pt, data_ct)) {
 		ERR_print_errors_fp(stderr);
 		goto cleanup;
 	}
@@ -463,6 +501,11 @@ cleanup:
 	if (certificate != NULL) {
 		mycms_certificate_destroy(certificate);
 		certificate = NULL;
+	}
+
+	if (mycms != NULL) {
+		mycms_destroy(mycms);
+		mycms = NULL;
 	}
 
 	if (cms_in != NULL) {

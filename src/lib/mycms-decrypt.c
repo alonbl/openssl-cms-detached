@@ -11,6 +11,7 @@
 #include "mycms-certificate-private.h"
 
 int mycms_decrypt(
+	mycms mycms __attribute__((unused)),
 	const mycms_certificate certificate,
 	BIO *cms_in,
 	BIO *data_pt,

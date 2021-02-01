@@ -3,6 +3,7 @@ MAINTAINERCLEANFILES = \
 	$(NULL)
 
 mycmsinclude_HEADERS = \
+	mycms-base.h \
 	mycms-blob.h \
 	mycms-certificate-driver-file.h \
 	mycms-certificate-driver-pkcs11.h \

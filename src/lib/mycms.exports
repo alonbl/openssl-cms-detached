@@ -1,2 +1,5 @@
-mycms_static_init
+mycms_construct
+mycms_destroy
+mycms_new
 mycms_static_free
+mycms_static_init

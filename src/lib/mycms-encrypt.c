@@ -8,7 +8,8 @@
 #include <openssl/x509.h>
 
 #include <mycms.h>
-#include <mycms-certificate-private.h>
+
+#include "mycms-certificate-private.h"
 
 static
 STACK_OF(CMS_RecipientInfo) *
@@ -71,6 +72,7 @@ cleanup:
 }
 
 int mycms_encrypt(
+	mycms mycms __attribute__((unused)),
 	const EVP_CIPHER *cipher,
 	const mycms_blob_list to,
 	BIO *cms_out,
@@ -117,6 +119,7 @@ cleanup:
 }
 
 int mycms_encrypt_add(
+	mycms mycms __attribute__((unused)),
 	const mycms_certificate certificate,
 	const mycms_blob_list to,
 	BIO *cms_in,
