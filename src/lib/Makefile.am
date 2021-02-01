@@ -10,6 +10,7 @@ CLEANFILES = \
 	$(NULL)
 
 MYCMS_EXPORTS = \
+	mycms-certificate-driver-pkcs11.exports \
 	mycms-certificate-driver-file.exports \
 	mycms-certificate.exports \
 	mycms.exports \
@@ -21,7 +22,6 @@ dist_noinst_DATA= \
 	$(MYCMS_EXPORTS) \
 	$(NULL)
 
-BUILT_SOURCES = mycms-all.exports
 pkgconfig_DATA = libmycms.pc
 lib_LTLIBRARIES = libmycms.la
 
@@ -32,12 +32,12 @@ AM_CPPFLAGS = \
 	-I$(top_srcdir)/include \
 	$(NULL)
 
-nodist_libmycms_la_SOURCES= \
-	mycms-decrypt.exports \
-	mycms-encrypt.exports \
+libmycms_la_DEPENDENCIES = \
+	mycms-all.exports \
 	$(NULL)
 libmycms_la_SOURCES= \
 	mycms-certificate-driver-file.c \
+	mycms-certificate-driver-pkcs11.c \
 	mycms-certificate-private.h \
 	mycms-certificate.c \
 	mycms-decrypt.c \
@@ -66,6 +66,9 @@ if ENABLE_CMS_DECRYPT
 endif
 if ENABLE_CMS_ENCRYPT
 	cat "$(srcdir)/mycms-encrypt.exports" >> mycms-all.exports.tmp
+endif
+if ENABLE_CERTIFICATE_DRIVER_PKCS11
+	cat "$(srcdir)/mycms-certificate-driver-pkcs11.exports" >> mycms-all.exports.tmp
 endif
 if ENABLE_CERTIFICATE_DRIVER_FILE
 	cat "$(srcdir)/mycms-certificate-driver-file.exports" >> mycms-all.exports.tmp

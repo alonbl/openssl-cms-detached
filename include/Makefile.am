@@ -5,6 +5,7 @@ MAINTAINERCLEANFILES = \
 mycmsinclude_HEADERS = \
 	mycms-blob.h \
 	mycms-certificate-driver-file.h \
+	mycms-certificate-driver-pkcs11.h \
 	mycms-certificate.h \
 	mycms.h \
 	$(NULL)

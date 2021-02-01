@@ -1,5 +1,5 @@
-#ifndef __MYCMS_CERTIFICATE_FILE_H
-#define __MYCMS_CERTIFICATE_FILE_H
+#ifndef __MYCMS_CERTIFICATE_DRIVER_FILE_H
+#define __MYCMS_CERTIFICATE_DRIVER_FILE_H
 
 #include <mycms-certificate.h>
 

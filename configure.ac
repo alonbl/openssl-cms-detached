@@ -83,6 +83,13 @@ AC_ARG_ENABLE(
 	[enable_certificate_driver_file="yes"]
 )
 
+AC_ARG_ENABLE(
+	[certificate-driver-pkcs11],
+	[AS_HELP_STRING([--disable-certificate-driver-pkcs11],[disable certificate pkcs11 driver support])],
+	,
+	[enable_certificate_driver_pkcs11="yes"]
+)
+
 AC_ARG_WITH(
 	[test-provider],
 	[AS_HELP_STRING([--with-test-provider=lib],[specify providers for test phase])],
@@ -139,7 +146,8 @@ test "${enable_tool}" = "yes" && AC_DEFINE([ENABLE_TOOL], [1], [Enable tool])
 test "${enable_openssl_err_strings}" = "yes" && AC_DEFINE([ENABLE_OPENSSL_ERR_STRINGS], [1], [Enable openssl error strings])
 test "${enable_cms_decrypt}" = "yes" && AC_DEFINE([ENABLE_CMS_DECRYPT], [1], [Enable cms decrypt])
 test "${enable_cms_encrypt}" = "yes" && AC_DEFINE([ENABLE_CMS_ENCRYPT], [1], [Enable cms encrypt])
-test "${enable_certificate_driver_file}" = "yes" && AC_DEFINE([ENABLE_CERTIFICATE_DRIVER_FILE], [1], [Enable cms certificate file encrypt])
+test "${enable_certificate_driver_file}" = "yes" && AC_DEFINE([ENABLE_CERTIFICATE_DRIVER_FILE], [1], [Enable cms certificate file driver])
+test "${enable_certificate_driver_pkcs11}" = "yes" && AC_DEFINE([ENABLE_CERTIFICATE_DRIVER_PKCS11], [1], [Enable cms pkcs11 file driver])
 
 pkgconfigdir="\$(libdir)/pkgconfig"
 mycmsincludedir="\$(includedir)/mycms"
@@ -153,6 +161,7 @@ AM_CONDITIONAL([ENABLE_TOOL], [test "${enable_tool}" = "yes"])
 AM_CONDITIONAL([ENABLE_CMS_DECRYPT], [test "${enable_cms_decrypt}" = "yes"])
 AM_CONDITIONAL([ENABLE_CMS_ENCRYPT], [test "${enable_cms_encrypt}" = "yes"])
 AM_CONDITIONAL([ENABLE_CERTIFICATE_DRIVER_FILE], [test "${enable_certificate_driver_file}" = "yes"])
+AM_CONDITIONAL([ENABLE_CERTIFICATE_DRIVER_PKCS11], [test "${enable_certificate_driver_pkcs11}" = "yes"])
 AC_CONFIG_FILES([
 	Makefile
 	include/Makefile
