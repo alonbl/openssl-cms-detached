@@ -204,7 +204,6 @@ static int cmd_encrypt_add(int argc, char *argv[]) {
 		OPT_CMS_IN,
 		OPT_CMS_OUT,
 		OPT_RECIP_CERT,
-		OPT_RECIP_KEY,
 		OPT_TO,
 		OPT_MAX
 	};
@@ -214,7 +213,6 @@ static int cmd_encrypt_add(int argc, char *argv[]) {
 		{"cms-in", required_argument, NULL, OPT_CMS_IN},
 		{"cms-out", required_argument, NULL, OPT_CMS_OUT},
 		{"recip-cert", required_argument, NULL, OPT_RECIP_CERT},
-		{"recip-key", required_argument, NULL, OPT_RECIP_KEY},
 		{"to", required_argument, NULL, OPT_TO},
 		{NULL, 0, NULL, 0}
 	};
@@ -357,7 +355,6 @@ static int cmd_decrypt(int argc, char *argv[]) {
 		OPT_HELP = 0x1000,
 		OPT_CMS_IN,
 		OPT_RECIP_CERT,
-		OPT_RECIP_KEY,
 		OPT_DATA_PT,
 		OPT_DATA_CT,
 		OPT_MAX
@@ -367,7 +364,6 @@ static int cmd_decrypt(int argc, char *argv[]) {
 		{"help", no_argument, NULL, OPT_HELP},
 		{"cms-in", required_argument, NULL, OPT_CMS_IN},
 		{"recip-cert", required_argument, NULL, OPT_RECIP_CERT},
-		{"recip-key", required_argument, NULL, OPT_RECIP_KEY},
 		{"data-pt", required_argument, NULL, OPT_DATA_PT},
 		{"data-ct", required_argument, NULL, OPT_DATA_CT},
 		{NULL, 0, NULL, 0}
