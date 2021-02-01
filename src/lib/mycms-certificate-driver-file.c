@@ -76,7 +76,7 @@ __driver_file_rsa_private_op(
 	const size_t to_size __attribute__((unused)),
 	const int padding
 ) {
-	__mycms_certificate_driver_file certificate_file = (__mycms_certificate_driver_file)mycms_certificate_get_userdata(certificate);
+	__mycms_certificate_driver_file certificate_file = (__mycms_certificate_driver_file)mycms_certificate_get_driverdata(certificate);
 	int cpadding;
 	const RSA_METHOD *rsa_method = NULL;
 	int ret = -1;
@@ -106,11 +106,12 @@ cleanup:
 }
 #endif
 
+static
 int
 __driver_file_free(
 	const mycms_certificate certificate
 ) {
-	__mycms_certificate_driver_file certificate_file = (__mycms_certificate_driver_file)mycms_certificate_get_userdata(certificate);
+	__mycms_certificate_driver_file certificate_file = (__mycms_certificate_driver_file)mycms_certificate_get_driverdata(certificate);
 
 	int ret = 1;
 
@@ -207,7 +208,7 @@ __driver_file_load(
 			goto cleanup;
 	}
 
-	if (!mycms_certificate_set_userdata(certificate, certificate_file)) {
+	if (!mycms_certificate_set_driverdata(certificate, certificate_file)) {
 		goto cleanup;
 	}
 	certificate_file = NULL;

@@ -15,6 +15,9 @@
 
 #include "pkcs11.h"
 
+#define __INVALID_SESSION_HANDLE	((CK_SESSION_HANDLE)-1)
+#define __INVALID_OBJECT_HANDLE		((CK_OBJECT_HANDLE)-1)
+
 struct __mycms_certificate_driver_pkcs11_s {
 	void *module_handle;
 	int should_finalize;
@@ -23,6 +26,25 @@ struct __mycms_certificate_driver_pkcs11_s {
 	CK_OBJECT_HANDLE key_handle;
 };
 typedef struct __mycms_certificate_driver_pkcs11_s *__mycms_certificate_driver_pkcs11;
+
+static
+void
+__fixupFixedString(
+	char * const target,			/* MUST BE >= length+1 */
+	const char * const source,
+	const size_t length			/* FIXED STRING LENGTH */
+) {
+	char *p;
+
+	p = target+length;
+	memmove (target, source, length);
+	*p = '\0';
+	p--;
+	while (p >= target && *p == ' ') {
+		*p = '\0';
+		p--;
+	}
+}
 
 static CK_MECHANISM_TYPE __convert_padding(const int padding) {
 	int ret;
@@ -44,32 +66,8 @@ static CK_MECHANISM_TYPE __convert_padding(const int padding) {
 }
 
 static
-EVP_PKEY *
-__load_pkey(const char *pkcs11) {
-	EVP_PKEY *k = NULL;
-	BIO *bio = NULL;
-
-	if ((bio = BIO_new_file(pkcs11, "rb")) == NULL) {
-		goto cleanup;
-	}
-
-	if ((k = d2i_PrivateKey_bio(bio, NULL)) == NULL) {
-		goto cleanup;
-	}
-
-cleanup:
-
-	if (bio != NULL) {
-		BIO_free(bio);
-		bio = NULL;
-	}
-
-	return k;
-}
-
-static
 CK_RV
-__load_provider (
+__load_provider(
 	const __mycms_certificate_driver_pkcs11 certificate_pkcs11,
 	const char * const module
 ) {
@@ -159,13 +157,14 @@ __driver_pkcs11_rsa_private_op(
 	const size_t to_size,
 	const int padding
 ) {
-	__mycms_certificate_driver_pkcs11 certificate_pkcs11 = (__mycms_certificate_driver_pkcs11)mycms_certificate_get_userdata(certificate);
+	__mycms_certificate_driver_pkcs11 certificate_pkcs11 = (__mycms_certificate_driver_pkcs11)mycms_certificate_get_driverdata(certificate);
 
 	CK_MECHANISM mech = {
 		0, NULL, 0
 	};
 	CK_ULONG size;
 	CK_RV rv = CKR_FUNCTION_FAILED;
+	int ret = -1;
 
 	if ((mech.mechanism = __convert_padding(padding)) == CKR_MECHANISM_INVALID) {
 		goto cleanup;
@@ -214,20 +213,31 @@ __driver_pkcs11_rsa_private_op(
 			goto cleanup;
 	}
 
+	ret = size;
+
 cleanup:
 
-	return rv;
+	return ret;
 }
 
+static
 int
 __driver_pkcs11_free(
 	const mycms_certificate certificate
 ) {
-	__mycms_certificate_driver_pkcs11 certificate_pkcs11 = (__mycms_certificate_driver_pkcs11)mycms_certificate_get_userdata(certificate);
+	__mycms_certificate_driver_pkcs11 certificate_pkcs11 = (__mycms_certificate_driver_pkcs11)mycms_certificate_get_driverdata(certificate);
 
 	int ret = 1;
 
 	if (certificate_pkcs11 != NULL) {
+		if (certificate_pkcs11->key_handle != __INVALID_OBJECT_HANDLE) {
+			certificate_pkcs11->key_handle = __INVALID_OBJECT_HANDLE;
+		}
+		if (certificate_pkcs11->session_handle != __INVALID_SESSION_HANDLE) {
+			certificate_pkcs11->f->C_Logout(certificate_pkcs11->session_handle);
+			certificate_pkcs11->f->C_CloseSession(certificate_pkcs11->session_handle);
+			certificate_pkcs11->session_handle = __INVALID_SESSION_HANDLE;
+		}
 		__unload_provider(certificate_pkcs11);
 		OPENSSL_free(certificate_pkcs11);
 	}
@@ -241,8 +251,120 @@ __driver_pkcs11_load(
 	const mycms_certificate certificate,
 	const char * const what
 ) {
+	__mycms_certificate_driver_pkcs11 certificate_pkcs11 = NULL;
+	char *module = NULL;
+	char *tokenlabel = NULL;
+	char *keylabel = NULL;
+	char pin[512];
+	char *p;
+	CK_SLOT_ID_PTR slots = NULL;
+	CK_ULONG slotnum = 0;
+	CK_ULONG slot_index;
+	CK_RV rv = CKR_FUNCTION_FAILED;
+	int ret = 0;
+	int found = 0;
+
+	if ((certificate_pkcs11 = OPENSSL_zalloc(sizeof(*certificate_pkcs11))) == NULL) {
+		goto cleanup;
+	}
+	certificate_pkcs11->session_handle = __INVALID_SESSION_HANDLE;
+	certificate_pkcs11->key_handle = __INVALID_OBJECT_HANDLE;
+
+	if ((rv = __load_provider(certificate_pkcs11, module)) != CKR_OK) {
+		goto cleanup;
+	}
+
+	if (
+		(rv = certificate_pkcs11->f->C_GetSlotList (
+			CK_TRUE,
+			NULL_PTR,
+			&slotnum
+		)) != CKR_OK
+	) {
+		goto cleanup;
+	}
+
+	if ((slots = OPENSSL_zalloc(sizeof(*slots) * slotnum)) == NULL) {
+		rv = CKR_HOST_MEMORY;
+		goto cleanup;
+	}
+
+	if (
+		(rv = certificate_pkcs11->f->C_GetSlotList (
+			CK_TRUE,
+			slots,
+			&slotnum
+		)) != CKR_OK
+	) {
+		goto cleanup;
+	}
+
+	for (
+		slot_index=0;
+		(
+			slot_index < slotnum &&
+			!found
+		);
+		slot_index++
+	) {
+		CK_TOKEN_INFO info;
+
+		if ((rv = certificate_pkcs11->f->C_GetTokenInfo (
+			slots[slot_index],
+			&info
+		)) != CKR_OK) {
+		} else {
+			char label[sizeof(info.label)+1];
+			__fixupFixedString(label, (char *)info.label, sizeof(info.label));
+
+			if (!strcmp(label, tokenlabel)) {
+				found = 1;
+				break;
+			}
+		}
+	}
+
+	if (!found) {
+		goto cleanup;
+	}
+
+	if ((rv = certificate_pkcs11->f->C_OpenSession (
+		slots[slot_index],
+		CKF_SERIAL_SESSION,
+		NULL_PTR,
+		NULL_PTR,
+		&certificate_pkcs11->session_handle
+	)) != CKR_OK) {
+		certificate_pkcs11->session_handle = __INVALID_SESSION_HANDLE;
+		goto cleanup;
+	}
+
+	p = pin;
+	if (!mycms_certificate_aquire_passphrase(certificate, &p, sizeof(pin))) {
+		goto cleanup;
+	}
+
+	if ((rv = certificate_pkcs11->f->C_Login (
+		certificate_pkcs11->session_handle,
+		CKU_USER,
+		(CK_UTF8CHAR_PTR)p,
+		p == NULL ? 0 : strlen(p)
+	)) != CKR_OK && rv != CKR_USER_ALREADY_LOGGED_IN) {
+		goto cleanup;
+	}
+
+	ret = 1;
+
+cleanup:
+
+	if (slots != NULL) {
+		OPENSSL_free(slots);
+		slots = NULL;
+	}
+
+	return ret;
+
 #if 0
-	mycms_certificate_driver_pkcs11 certificate_pkcs11 = NULL;
 
 	EVP_PKEY *evp = NULL;
 
@@ -316,7 +438,7 @@ __driver_pkcs11_load(
 			goto cleanup;
 	}
 
-	if (!mycms_certificate_set_userdata(certificate, certificate_pkcs11)) {
+	if (!mycms_certificate_set_driverdata(certificate, certificate_pkcs11)) {
 		goto cleanup;
 	}
 	certificate_pkcs11 = NULL;

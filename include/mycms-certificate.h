@@ -36,6 +36,12 @@ typedef int (*mycms_certificate_driver_rsa_private_op)(
 	const int padding
 );
 
+typedef int (*mycms_certificate_passphrase_callback)(
+	const mycms_certificate certificate,
+	char **p,
+	const size_t size
+);
+
 mycms_certificate
 mycms_certificate_new(
 	const mycms mycms
@@ -62,6 +68,17 @@ mycms_certificate_set_userdata(
 	void *userdata
 );
 
+void *
+mycms_certificate_get_driverdata(
+	const mycms_certificate certificate
+);
+
+int
+mycms_certificate_set_driverdata(
+	const mycms_certificate certificate,
+	void *userdata
+);
+
 int
 mycms_certificate_set_driver_load(
 	const mycms_certificate certificate,
@@ -81,6 +98,12 @@ mycms_certificate_set_driver_rsa_private_op(
 );
 
 int
+mycms_certificate_set_passphrase_callback(
+	const mycms_certificate certificate,
+	const mycms_certificate_passphrase_callback passphrase_callback
+);
+
+int
 mycms_certificate_apply_certificate(
 	const mycms_certificate certificate,
 	const mycms_blob *blob
@@ -90,6 +113,13 @@ int
 mycms_certificate_load(
 	const mycms_certificate certificate,
 	const char * const what
+);
+
+int
+mycms_certificate_aquire_passphrase(
+	const mycms_certificate certificate,
+	char **p,
+	const size_t size
 );
 
 #endif

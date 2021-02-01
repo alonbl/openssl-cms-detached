@@ -12,9 +12,11 @@
 struct mycms_certificate_s {
 	mycms mycms;
 	void *userdata;
+	void *driverdata;
 	mycms_certificate_driver_free driver_free;
 	mycms_certificate_driver_load driver_load;
 	mycms_certificate_driver_rsa_private_op driver_rsa_private_op;
+	mycms_certificate_passphrase_callback passphrase_callback;
 	X509 *x509;
 	EVP_PKEY *evp;
 };
@@ -114,6 +116,10 @@ __mycms_certificate_rsa_op(
 	mycms_certificate certificate = __mycms_openssl_get_rsa_certificate(rsa);
 	int cpadding;
 	int ret = -1;
+
+	if (certificate->driver_rsa_private_op == NULL) {
+		goto cleanup;
+	}
 
 	if ((cpadding = __convert_padding(padding)) == MYCMS_PADDING_INVALID) {
 		goto cleanup;
@@ -296,6 +302,22 @@ mycms_certificate_set_userdata(
 	return 1;
 }
 
+void *
+mycms_certificate_get_driverdata(
+	const mycms_certificate certificate
+) {
+	return certificate->driverdata;
+}
+
+int
+mycms_certificate_set_driverdata(
+	const mycms_certificate certificate,
+	void *driverdata
+) {
+	certificate->driverdata = driverdata;
+	return 1;
+}
+
 int
 mycms_certificate_set_driver_load(
 	const mycms_certificate certificate,
@@ -324,11 +346,24 @@ mycms_certificate_set_driver_rsa_private_op(
 }
 
 int
+mycms_certificate_set_passphrase_callback(
+	const mycms_certificate certificate,
+	const mycms_certificate_passphrase_callback passphrase_callback
+) {
+	certificate->passphrase_callback = passphrase_callback;
+	return 1;
+}
+
+int
 mycms_certificate_load(
 	const mycms_certificate certificate,
 	const char * const what
 ) {
-	return certificate->driver_load(certificate, what);
+	if (certificate->driver_load == NULL) {
+		return 0;
+	} else {
+		return certificate->driver_load(certificate, what);
+	}
 }
 
 int
@@ -381,6 +416,19 @@ cleanup:
 	}
 
 	return ret;
+}
+
+int
+mycms_certificate_aquire_passphrase(
+	const mycms_certificate certificate,
+	char **p,
+	const size_t size
+) {
+	if (certificate->passphrase_callback == NULL) {
+		return 0;
+	} else {
+		return certificate->passphrase_callback(certificate, p, size);
+	}
 }
 
 X509 *
