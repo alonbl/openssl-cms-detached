@@ -557,6 +557,7 @@ int main(int argc, char *argv[]) {
 				ret = 0;
 				goto cleanup;
 			case OPT_SHOW_COMMANDS:
+				printf("sane\n");
 #if defined(ENABLE_CMS_DECRYPT)
 				printf("decrypt\n");
 #endif

@@ -141,6 +141,7 @@ test_add_recepients() {
 	return 0
 }
 
+"${MYCMS_TOOL}" --show-commands | grep -q "sane" || die "tool is insane"
 "${MYCMS_TOOL}" --show-commands | grep -q "encrypt" || exit 77
 "${MYCMS_TOOL}" --show-commands | grep -q "decrypt" || exit 77
 
