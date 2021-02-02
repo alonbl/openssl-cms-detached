@@ -3,7 +3,8 @@ MAINTAINERCLEANFILES = \
 	$(NULL)
 
 dist_noinst_SCRIPTS = \
-	test.sh \
+	test-file.sh \
+	test-pkcs11.sh \
 	$(NULL)
 
 dist_noinst_DATA = \
@@ -21,8 +22,11 @@ dist_noinst_DATA = \
 
 TESTS_ENVIRONMENT = \
 	MYCMS_TOOL="$(top_builddir)/src/tool/mycms-tool" \
+	SOFTHSM2_UTIL="$(SOFTHSM2_UTIL)" \
+	PKCS11_TOOL="$(PKCS11_TOOL)" \
 	VALGRIND="$(VALGRIND)" \
 	$(NULL)
 TESTS = \
-	test.sh \
+	test-file.sh \
+	test-pkcs11.sh \
 	$(NULL)

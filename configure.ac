@@ -8,7 +8,7 @@ define([PACKAGE_SUFFIX], [_master])
 AC_INIT([mycms],[PACKAGE_VERSION_MAJOR.PACKAGE_VERSION_MINOR.PACKAGE_VERSION_FIX[]PACKAGE_SUFFIX])
 AC_CONFIG_AUX_DIR([.])
 AC_CONFIG_HEADERS([config.h])
-AC_CONFIG_MACRO_DIR([m4])
+AC_CONFIG_MACRO_DIRS([m4])
 AC_CONFIG_SRCDIR([include/mycms.h])
 AM_INIT_AUTOMAKE
 
@@ -90,13 +90,6 @@ AC_ARG_ENABLE(
 	[enable_certificate_driver_pkcs11="yes"]
 )
 
-AC_ARG_WITH(
-	[test-provider],
-	[AS_HELP_STRING([--with-test-provider=lib],[specify providers for test phase])],
-	[AC_DEFINE_UNQUOTED([TEST_PROVIDER], ["${withval}"], [Test provider])],
-	[AC_DEFINE_UNQUOTED([TEST_PROVIDER], ["/usr/lib/pkcs11/provider.so"], [Test provider])]
-)
-
 AC_PROG_CC
 AC_PROG_INSTALL
 PKG_PROG_PKG_CONFIG
@@ -140,6 +133,10 @@ AC_C_INLINE
 AC_C_VOLATILE
 AC_TYPE_SIZE_T
 
+AC_ARG_VAR([PKCS11_TOOL], [path to pkcs11-tool utility])
+AC_CHECK_PROGS([PKCS11_TOOL], [pkcs11-tool])
+AC_ARG_VAR([SOFTHSM2_UTIL], [path to softhsm2-util utility])
+AC_CHECK_PROGS([SOFTHSM2_UTIL], [softhsm2-util])
 AC_ARG_VAR([VALGRIND], [path to valgrind utility])
 AC_CHECK_PROGS([VALGRIND], [valgrind])
 
