@@ -40,7 +40,7 @@ test_sanity() {
 	echo "Decrypting by test1"
 	doval "${MYCMS_TOOL}" decrypt \
 		--cms-in="${CMS}" \
-		--recip-cert="${srcdir}/test1.der:${srcdir}/test1.key" \
+		--recip-cert="file:${srcdir}/test1.der:${srcdir}/test1.key" \
 		--data-pt="${OUTPT}" \
 		--data-ct="${CT}" \
 		|| die "sanity.decrypt"
@@ -50,7 +50,7 @@ test_sanity() {
 	echo "Decrypting by test2 (should fail)"
 	doval "${MYCMS_TOOL}" decrypt \
 		--cms-in="${CMS}" \
-		--recip-cert="${srcdir}/test2.der:${srcdir}/test2.key" \
+		--recip-cert="file:${srcdir}/test2.der:${srcdir}/test2.key" \
 		--data-pt="${OUTPT}" \
 		--data-ct="${CT}" \
 		&& die "sanity.decrypt succeeded with other"
@@ -76,7 +76,7 @@ test_multipile_recepients() {
 	echo "Decrypting by test1"
 	doval "${MYCMS_TOOL}" decrypt \
 		--cms-in="${CMS}" \
-		--recip-cert="${srcdir}/test1.der:${srcdir}/test1.key" \
+		--recip-cert="file:${srcdir}/test1.der:${srcdir}/test1.key" \
 		--data-pt="${OUTPT1}" \
 		--data-ct="${CT}" \
 		|| die "multi-recip.decrypt"
@@ -84,7 +84,7 @@ test_multipile_recepients() {
 	echo "Decrypting by test2"
 	doval "${MYCMS_TOOL}" decrypt \
 		--cms-in="${CMS}" \
-		--recip-cert="${srcdir}/test2.der:${srcdir}/test2.key" \
+		--recip-cert="file:${srcdir}/test2.der:${srcdir}/test2.key" \
 		--data-pt="${OUTPT2}" \
 		--data-ct="${CT}" \
 		|| die "multi-recip.decrypt"
@@ -113,7 +113,7 @@ test_add_recepients() {
 	doval "${MYCMS_TOOL}" encrypt-add \
 		--cms-in="${CMS1}" \
 		--cms-out="${CMS2}" \
-		--recip-cert="${srcdir}/test1.der:${srcdir}/test1.key" \
+		--recip-cert="file:${srcdir}/test1.der:${srcdir}/test1.key" \
 		--to="${srcdir}/test3.der" \
 		--to="${srcdir}/test4.der" \
 		#|| die "add-recip.encrypt"
@@ -123,7 +123,7 @@ test_add_recepients() {
 		echo "Decrypting by '${x}'"
 		doval "${MYCMS_TOOL}" decrypt \
 			--cms-in="${CMS2}" \
-			--recip-cert="${srcdir}/${x}.der:${srcdir}/${x}.key" \
+			--recip-cert="file:${srcdir}/${x}.der:${srcdir}/${x}.key" \
 			--data-pt="${OUTPT}-${x}" \
 			--data-ct="${CT}" \
 			|| die "add-recip.decrypt.${x}"
@@ -133,7 +133,7 @@ test_add_recepients() {
 	echo "Decrypting by test5 (should fail)"
 	doval "${MYCMS_TOOL}" decrypt \
 		--cms-in="${CMS2}" \
-		--recip-cert="${srcdir}/test5.der:${srcdir}/test5.key" \
+		--recip-cert="file:${srcdir}/test5.der:${srcdir}/test5.key" \
 		--data-pt="${OUTPT}-test5" \
 		--data-ct="${CT}" \
 		&& die "sanity.decrypt should not succeed"

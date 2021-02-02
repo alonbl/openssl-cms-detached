@@ -12,6 +12,49 @@
 
 #include <mycms.h>
 #include <mycms-certificate-driver-file.h>
+#include <mycms-certificate-driver-pkcs11.h>
+
+typedef int (*certificate_apply)(const mycms_certificate c);
+
+static const struct certificate_driver_s {
+	const char *name;
+	certificate_apply p;
+} CERTIFICATE_DRIVERS[] = {
+#ifdef ENABLE_CERTIFICATE_DRIVER_FILE
+	{"file:", mycms_certificate_driver_file_apply},
+#endif
+#ifdef ENABLE_CERTIFICATE_DRIVER_PKCS11
+	{"pkcs11:", mycms_certificate_driver_pkcs11_apply},
+#endif
+	{NULL, NULL}
+};
+
+static certificate_apply get_certificate_driver(const char ** what) {
+	const struct certificate_driver_s *sd = CERTIFICATE_DRIVERS;
+	const char *p;
+	certificate_apply ret = NULL;
+
+	if (what == NULL || *what == NULL) {
+		goto cleanup;
+	}
+
+	p = *what;
+	if ((*what = strchr(p, ':')) == NULL) {
+		goto cleanup;
+	}
+	(*what)++;
+
+	for (sd = CERTIFICATE_DRIVERS; sd->name != NULL; sd++) {
+		if (!strncmp(p, sd->name, strlen(sd->name))) {
+			ret = sd->p;
+			break;
+		}
+	}
+
+cleanup:
+
+	return ret;
+}
 
 #if defined(ENABLE_CMS_DECRYPT) || defined(ENABLE_CMS_DECRYPT)
 
@@ -429,8 +472,14 @@ static int cmd_encrypt_add(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
-	if (!mycms_certificate_driver_file_apply(certificate)) {
-		goto cleanup;
+	{
+		certificate_apply x;
+		if ((x = get_certificate_driver(&certificate_exp)) == NULL) {
+			goto cleanup;
+		}
+		if (!x(certificate)) {
+			goto cleanup;
+		}
 	}
 
 	if (!mycms_certificate_load(certificate, certificate_exp)) {
@@ -596,8 +645,14 @@ static int cmd_decrypt(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
-	if (!mycms_certificate_driver_file_apply(certificate)) {
-		goto cleanup;
+	{
+		certificate_apply x;
+		if ((x = get_certificate_driver(&certificate_exp)) == NULL) {
+			goto cleanup;
+		}
+		if (!x(certificate)) {
+			goto cleanup;
+		}
 	}
 
 	if (!mycms_certificate_load(certificate, certificate_exp)) {
