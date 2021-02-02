@@ -109,6 +109,9 @@ if test "${enable_all_static}" = "yes"; then
 		,
 		[AC_MSG_ERROR([Cannot locate openssl])]
 	)
+	if echo "${OPENSSL_LIBS}" | grep -q pthread; then
+		OPENSSL_LIBS="${OPENSSL_LIBS} -Wl,-u,pthread_mutex_lock -Wl,-u,pthread_mutex_unlock"
+	fi
 else
 	PKG_CHECK_MODULES(
 		[OPENSSL],
