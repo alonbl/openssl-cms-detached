@@ -5,6 +5,7 @@
 #include <getopt.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <openssl/evp.h>
 #include <openssl/err.h>
@@ -65,6 +66,96 @@ cleanup:
 }
 
 #endif
+
+static void chop(const char *s) {
+	if (s != NULL) {
+		char *p;
+		if ((p = strchr(s, '\n')) != NULL) {
+			*p = '\0';
+		}
+		if ((p = strchr(s, '\r')) != NULL) {
+			*p = '\0';
+		}
+	}
+}
+
+static int mygetpass(const char * const exp, char * const pass, const size_t size) {
+
+	static const char PASS_PASS[] = "pass:";
+	static const char PASS_ENV[] = "env:";
+	static const char PASS_FILE[] = "file:";
+	static const char PASS_FD[] = "fd:";
+
+	char *p;
+	int ret = 0;
+
+	if (exp == NULL || pass == NULL) {
+		goto cleanup;
+	}
+
+	if ((p = strchr(exp, ':')) == NULL) {
+		goto cleanup;
+	}
+	p++;
+
+	if (!strncmp(exp, PASS_PASS, sizeof(PASS_PASS)-1)) {
+		if (strlen(p) >= size) {
+			goto cleanup;
+		}
+		strcpy(pass, p);
+	} else if (!strncmp(exp, PASS_ENV, sizeof(PASS_ENV)-1)) {
+		char *x = getenv(p);
+		if (x == NULL || strlen(x) >= size) {
+			goto cleanup;
+		}
+		strcpy(pass, x);
+	} else if (!strncmp(exp, PASS_FILE, sizeof(PASS_FILE)-1)) {
+		FILE *fp;
+
+		if ((fp = fopen(p, "r")) != NULL) {
+			char *x = fgets(pass, size, fp);
+			fclose(fp);
+			if (x == NULL) {
+				goto cleanup;
+			}
+			pass[size-1] = '\0';
+			chop(pass);
+		}
+	} else if (!strncmp(exp, PASS_FD, sizeof(PASS_FD)-1)) {
+		int fd = atoi(p);
+		ssize_t s;
+
+		if ((s = read(fd, pass, size - 1)) == -1) {
+			goto cleanup;
+		}
+
+		pass[s] = '\0';
+		chop(pass);
+	} else {
+		goto cleanup;
+	}
+
+	ret = 1;
+
+cleanup:
+
+	return ret;
+}
+
+static int passphrase_callback(
+	const mycms_certificate certificate,
+	char **p,
+	const size_t size
+) {
+	char *exp = (char *)mycms_certificate_get_userdata(certificate);
+
+	if (exp == NULL) {
+		*p = NULL;
+		return 1;
+	} else {
+		return mygetpass(exp, *p, size);
+	}
+}
 
 #if defined(ENABLE_CMS_ENCRYPT)
 
@@ -219,6 +310,7 @@ static int cmd_encrypt_add(int argc, char *argv[]) {
 		OPT_CMS_IN,
 		OPT_CMS_OUT,
 		OPT_RECIP_CERT,
+		OPT_RECIP_CERT_PASS,
 		OPT_TO,
 		OPT_MAX
 	};
@@ -228,6 +320,7 @@ static int cmd_encrypt_add(int argc, char *argv[]) {
 		{"cms-in", required_argument, NULL, OPT_CMS_IN},
 		{"cms-out", required_argument, NULL, OPT_CMS_OUT},
 		{"recip-cert", required_argument, NULL, OPT_RECIP_CERT},
+		{"recip-cert-pass", required_argument, NULL, OPT_RECIP_CERT_PASS},
 		{"to", required_argument, NULL, OPT_TO},
 		{NULL, 0, NULL, 0}
 	};
@@ -235,6 +328,8 @@ static int cmd_encrypt_add(int argc, char *argv[]) {
 	int option;
 	int ret = 1;
 
+	const char * certificate_exp = NULL;
+	const char * pass_exp = NULL;
 	BIO *cms_in = NULL;
 	BIO *cms_out = NULL;
 	mycms_blob_list to = NULL;
@@ -269,26 +364,10 @@ static int cmd_encrypt_add(int argc, char *argv[]) {
 				}
 			break;
 			case OPT_RECIP_CERT:
-				if (certificate != NULL) {
-					fprintf(stderr, "Recipient already specified\n");
-					goto cleanup;
-				}
-
-				if ((certificate = mycms_certificate_new(mycms)) == NULL) {
-					goto cleanup;
-				}
-
-				if (!mycms_certificate_construct(certificate)) {
-					goto cleanup;
-				}
-
-				if (!mycms_certificate_driver_file_apply(certificate)) {
-					goto cleanup;
-				}
-
-				if (!mycms_certificate_load(certificate, optarg)) {
-					goto cleanup;
-				}
+				certificate_exp = optarg;
+			break;
+			case OPT_RECIP_CERT_PASS:
+				pass_exp = optarg;
 			break;
 			case OPT_TO:
 				{
@@ -317,7 +396,7 @@ static int cmd_encrypt_add(int argc, char *argv[]) {
 		fprintf(stderr, "Unexpected positional options\n");
 		goto cleanup;
 	}
-	if (certificate == NULL) {
+	if (certificate_exp == NULL) {
 		fprintf(stderr, "Certificate is mandatory\n");
 		goto cleanup;
 	}
@@ -331,6 +410,30 @@ static int cmd_encrypt_add(int argc, char *argv[]) {
 	}
 	if (to == NULL) {
 		fprintf(stderr, "To is mandatory\n");
+		goto cleanup;
+	}
+
+	if ((certificate = mycms_certificate_new(mycms)) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_certificate_construct(certificate)) {
+		goto cleanup;
+	}
+
+	if (!mycms_certificate_set_userdata(certificate, pass_exp)) {
+		goto cleanup;
+	}
+
+	if (!mycms_certificate_set_passphrase_callback(certificate, passphrase_callback)) {
+		goto cleanup;
+	}
+
+	if (!mycms_certificate_driver_file_apply(certificate)) {
+		goto cleanup;
+	}
+
+	if (!mycms_certificate_load(certificate, certificate_exp)) {
 		goto cleanup;
 	}
 
@@ -384,6 +487,7 @@ static int cmd_decrypt(int argc, char *argv[]) {
 		OPT_HELP = 0x1000,
 		OPT_CMS_IN,
 		OPT_RECIP_CERT,
+		OPT_RECIP_CERT_PASS,
 		OPT_DATA_PT,
 		OPT_DATA_CT,
 		OPT_MAX
@@ -393,6 +497,7 @@ static int cmd_decrypt(int argc, char *argv[]) {
 		{"help", no_argument, NULL, OPT_HELP},
 		{"cms-in", required_argument, NULL, OPT_CMS_IN},
 		{"recip-cert", required_argument, NULL, OPT_RECIP_CERT},
+		{"recip-cert-pass", required_argument, NULL, OPT_RECIP_CERT_PASS},
 		{"data-pt", required_argument, NULL, OPT_DATA_PT},
 		{"data-ct", required_argument, NULL, OPT_DATA_CT},
 		{NULL, 0, NULL, 0}
@@ -401,6 +506,8 @@ static int cmd_decrypt(int argc, char *argv[]) {
 	int option;
 	int ret = 1;
 
+	const char * certificate_exp = NULL;
+	const char * pass_exp = NULL;
 	BIO *cms_in = NULL;
 	BIO *data_pt = NULL;
 	BIO *data_ct = NULL;
@@ -429,26 +536,10 @@ static int cmd_decrypt(int argc, char *argv[]) {
 				}
 			break;
 			case OPT_RECIP_CERT:
-				if (certificate != NULL) {
-					fprintf(stderr, "Recipient already specified\n");
-					goto cleanup;
-				}
-
-				if ((certificate = mycms_certificate_new(mycms)) == NULL) {
-					goto cleanup;
-				}
-
-				if (!mycms_certificate_construct(certificate)) {
-					goto cleanup;
-				}
-
-				if (!mycms_certificate_driver_file_apply(certificate)) {
-					goto cleanup;
-				}
-
-				if (!mycms_certificate_load(certificate, optarg)) {
-					goto cleanup;
-				}
+				certificate_exp = optarg;
+			break;
+			case OPT_RECIP_CERT_PASS:
+				pass_exp = optarg;
 			break;
 			case OPT_DATA_PT:
 				if ((data_pt = BIO_new_file(optarg, "wb")) == NULL) {
@@ -472,7 +563,7 @@ static int cmd_decrypt(int argc, char *argv[]) {
 		fprintf(stderr, "Unexpected positional options\n");
 		goto cleanup;
 	}
-	if (certificate == NULL) {
+	if (certificate_exp == NULL) {
 		fprintf(stderr, "Certificate is mandatory\n");
 		goto cleanup;
 	}
@@ -486,6 +577,30 @@ static int cmd_decrypt(int argc, char *argv[]) {
 	}
 	if (data_ct == NULL) {
 		fprintf(stderr, "Data out is mandatory\n");
+		goto cleanup;
+	}
+
+	if ((certificate = mycms_certificate_new(mycms)) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_certificate_construct(certificate)) {
+		goto cleanup;
+	}
+
+	if (!mycms_certificate_set_userdata(certificate, pass_exp)) {
+		goto cleanup;
+	}
+
+	if (!mycms_certificate_set_passphrase_callback(certificate, passphrase_callback)) {
+		goto cleanup;
+	}
+
+	if (!mycms_certificate_driver_file_apply(certificate)) {
+		goto cleanup;
+	}
+
+	if (!mycms_certificate_load(certificate, certificate_exp)) {
 		goto cleanup;
 	}
 

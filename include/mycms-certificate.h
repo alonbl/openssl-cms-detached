@@ -57,7 +57,7 @@ mycms_certificate_destroy(
 	const mycms_certificate certificate
 );
 
-void *
+const void *
 mycms_certificate_get_userdata(
 	const mycms_certificate certificate
 );
@@ -65,10 +65,10 @@ mycms_certificate_get_userdata(
 int
 mycms_certificate_set_userdata(
 	const mycms_certificate certificate,
-	void *userdata
+	const void *userdata
 );
 
-void *
+const void *
 mycms_certificate_get_driverdata(
 	const mycms_certificate certificate
 );
@@ -76,7 +76,7 @@ mycms_certificate_get_driverdata(
 int
 mycms_certificate_set_driverdata(
 	const mycms_certificate certificate,
-	void *userdata
+	const void *userdata
 );
 
 int

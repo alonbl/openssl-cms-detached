@@ -252,11 +252,12 @@ __driver_pkcs11_load(
 	const char * const what
 ) {
 	__mycms_certificate_driver_pkcs11 certificate_pkcs11 = NULL;
+	char *work = NULL;
+	char *p;
 	char *module = NULL;
 	char *tokenlabel = NULL;
 	char *keylabel = NULL;
 	char pin[512];
-	char *p;
 	CK_SLOT_ID_PTR slots = NULL;
 	CK_ULONG slotnum = 0;
 	CK_ULONG slot_index;
@@ -264,11 +265,37 @@ __driver_pkcs11_load(
 	int ret = 0;
 	int found = 0;
 
+	if ((work = OPENSSL_strdup(what)) == NULL) {
+		goto cleanup;
+	}
+
+	p = work;
+	module = p;
+	if ((p = strchr(p, ':')) == NULL) {
+		goto cleanup;
+	}
+	*p = '\0';
+	p++;
+	tokenlabel = p;
+	if ((p = strchr(p, ':')) == NULL) {
+		goto cleanup;
+	}
+	*p = '\0';
+	p++;
+	keylabel = p;
+	if ((p = strchr(p, ':')) != NULL) {
+		*p = '\0';
+	}
+
 	if ((certificate_pkcs11 = OPENSSL_zalloc(sizeof(*certificate_pkcs11))) == NULL) {
 		goto cleanup;
 	}
 	certificate_pkcs11->session_handle = __INVALID_SESSION_HANDLE;
 	certificate_pkcs11->key_handle = __INVALID_OBJECT_HANDLE;
+
+	if (!mycms_certificate_set_driverdata(certificate, certificate_pkcs11)) {
+		goto cleanup;
+	}
 
 	if ((rv = __load_provider(certificate_pkcs11, module)) != CKR_OK) {
 		goto cleanup;
@@ -353,6 +380,12 @@ __driver_pkcs11_load(
 		goto cleanup;
 	}
 
+#if 0
+	if (!mycms_certificate_apply_certificate(certificate, &blob)) {
+		goto cleanup;
+	}
+#endif
+
 	ret = 1;
 
 cleanup:
@@ -363,126 +396,6 @@ cleanup:
 	}
 
 	return ret;
-
-#if 0
-
-	EVP_PKEY *evp = NULL;
-
-	int ret = 0;
-	char *work = NULL;
-	char *p;
-	char *cert_pkcs11;
-	char *key_pkcs11;
-	FILE *fp = NULL;
-	mycms_blob blob = {NULL, 0};
-
-	if ((work = OPENSSL_strdup(what)) == NULL) {
-		goto cleanup;
-	}
-
-	p = work;
-	cert_pkcs11 = p;
-	if ((p = strchr(p, ':')) == NULL) {
-		goto cleanup;
-	}
-	*p = '\0';
-	p++;
-	key_pkcs11 = p;
-	if ((p = strchr(p, ':')) != NULL) {
-		*p = '\0';
-	}
-
-	if ((fp = fopen(cert_pkcs11, "rb")) == NULL) {
-		goto cleanup;
-	}
-
-	if (fseek(fp, 0L, SEEK_END) != 0) {
-		goto cleanup;
-	}
-	{
-		long l;
-		if ((l = ftell(fp)) == -1) {
-			goto cleanup;
-		}
-		blob.size = l;
-	}
-	if (fseek(fp, 0L, SEEK_SET) != 0) {
-		goto cleanup;
-	}
-
-	if ((blob.data = OPENSSL_zalloc(blob.size)) == NULL) {
-		goto cleanup;
-	}
-
-	if (fread(blob.data, blob.size, 1, fp) != 1) {
-		goto cleanup;
-	}
-
-	if ((evp = __load_pkey(key_pkcs11)) == NULL) {
-		goto cleanup;
-	}
-
-	if ((certificate_pkcs11 = OPENSSL_zalloc(sizeof(*certificate_pkcs11))) == NULL) {
-		goto cleanup;
-	}
-
-	switch (EVP_PKEY_id(evp)) {
-#ifndef OPENSSL_NO_RSA
-		case EVP_PKEY_RSA:
-			if ((certificate_pkcs11->rsa = EVP_PKEY_get1_RSA(evp)) == NULL) {
-				goto cleanup;
-			}
-		break;
-#endif
-		default:
-			goto cleanup;
-	}
-
-	if (!mycms_certificate_set_driverdata(certificate, certificate_pkcs11)) {
-		goto cleanup;
-	}
-	certificate_pkcs11 = NULL;
-
-	if (!mycms_certificate_apply_certificate(certificate, &blob)) {
-		goto cleanup;
-	}
-
-	ret = 1;
-
-cleanup:
-	if (blob.data != NULL) {
-		OPENSSL_free(blob.data);
-		blob.data = NULL;
-	}
-
-	if (fp != NULL) {
-		fclose(fp);
-		fp = NULL;
-	}
-
-	if (work != NULL) {
-		OPENSSL_free(work);
-		work = NULL;
-	}
-
-	if (evp != NULL) {
-		EVP_PKEY_free(evp);
-		evp = NULL;
-	}
-
-	if (certificate_pkcs11 != NULL) {
-#ifndef OPENSSL_NO_RSA
-		if (certificate_pkcs11->rsa != NULL) {
-			RSA_free(certificate_pkcs11->rsa);
-			certificate_pkcs11->rsa = NULL;
-		}
-#endif
-		OPENSSL_free(certificate_pkcs11);
-		certificate_pkcs11 = NULL;
-	}
-
-	return ret;
-#endif
 }
 
 int mycms_certificate_driver_pkcs11_apply(

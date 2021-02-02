@@ -11,8 +11,8 @@
 
 struct mycms_certificate_s {
 	mycms mycms;
-	void *userdata;
-	void *driverdata;
+	const void *userdata;
+	const void *driverdata;
 	mycms_certificate_driver_free driver_free;
 	mycms_certificate_driver_load driver_load;
 	mycms_certificate_driver_rsa_private_op driver_rsa_private_op;
@@ -286,7 +286,7 @@ mycms_certificate_destroy(
 	return 1;
 }
 
-void *
+const void *
 mycms_certificate_get_userdata(
 	const mycms_certificate certificate
 ) {
@@ -296,13 +296,13 @@ mycms_certificate_get_userdata(
 int
 mycms_certificate_set_userdata(
 	const mycms_certificate certificate,
-	void *userdata
+	const void *userdata
 ) {
 	certificate->userdata = userdata;
 	return 1;
 }
 
-void *
+const void *
 mycms_certificate_get_driverdata(
 	const mycms_certificate certificate
 ) {
@@ -312,7 +312,7 @@ mycms_certificate_get_driverdata(
 int
 mycms_certificate_set_driverdata(
 	const mycms_certificate certificate,
-	void *driverdata
+	const void *driverdata
 ) {
 	certificate->driverdata = driverdata;
 	return 1;
