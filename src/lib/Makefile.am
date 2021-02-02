@@ -43,6 +43,7 @@ libmycms_la_SOURCES= \
 	mycms-decrypt.c \
 	mycms-encrypt.c \
 	mycms.c \
+	pkcs11.h \
 	$(NULL)
 libmycms_la_LIBADD = \
 	$(OPENSSL_LIBS) \

@@ -16,6 +16,23 @@
 
 typedef int (*certificate_apply)(const mycms_certificate c);
 
+const char *FEATURES[] = {
+	"sane",
+#if defined(ENABLE_CERTIFICATE_DRIVER_FILE)
+	"certificate-driver-file",
+#endif
+#if defined(ENABLE_CERTIFICATE_DRIVER_PKCS11)
+	"certificate-driver-pkcs11",
+#endif
+#if defined(ENABLE_CMS_DECRYPT)
+	"decrypt",
+#endif
+#if defined(ENABLE_CMS_ENCRYPT)
+	"encrypt",
+#endif
+	NULL
+};
+
 static const struct certificate_driver_s {
 	const char *name;
 	certificate_apply p;
@@ -727,13 +744,12 @@ int main(int argc, char *argv[]) {
 				ret = 0;
 				goto cleanup;
 			case OPT_SHOW_COMMANDS:
-				printf("sane\n");
-#if defined(ENABLE_CMS_DECRYPT)
-				printf("decrypt\n");
-#endif
-#if defined(ENABLE_CMS_ENCRYPT)
-				printf("encrypt\n");
-#endif
+				{
+					const char **p;
+					for (p = FEATURES; *p != NULL; p++) {
+						printf("%s\n", *p);
+					}
+				}
 				ret = 0;
 				goto cleanup;
 			default:

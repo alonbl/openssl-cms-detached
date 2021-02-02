@@ -144,6 +144,7 @@ test_add_recepients() {
 "${MYCMS_TOOL}" --show-commands | grep -q "sane" || die "tool is insane"
 "${MYCMS_TOOL}" --show-commands | grep -q "encrypt" || exit 77
 "${MYCMS_TOOL}" --show-commands | grep -q "decrypt" || exit 77
+"${MYCMS_TOOL}" --show-commands | grep -q "certificate-driver-file" || exit 77
 
 MYTMP="$(mktemp -d)"
 PT="${MYTMP}/pt"
