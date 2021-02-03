@@ -13,6 +13,12 @@ die() {
 	exit 1
 }
 
+skip() {
+	local m="$1"
+	echo "SKIP: ${m}" >&2
+	exit 77
+}
+
 MYTMP=
 cleanup() {
 	rm -fr "${MYTMP}"
@@ -144,9 +150,9 @@ test_add_recepients() {
 }
 
 "${MYCMS_TOOL}" --show-commands | grep -q "sane" || die "tool is insane"
-"${MYCMS_TOOL}" --show-commands | grep -q "encrypt" || exit 77
-"${MYCMS_TOOL}" --show-commands | grep -q "decrypt" || exit 77
-"${MYCMS_TOOL}" --show-commands | grep -q "certificate-driver-file" || exit 77
+"${MYCMS_TOOL}" --show-commands | grep -q "encrypt" || skip "encrypt feature is not available"
+"${MYCMS_TOOL}" --show-commands | grep -q "decrypt" || skip "decrypt feature is not available"
+"${MYCMS_TOOL}" --show-commands | grep -q "certificate-driver-pkcs11" || skip "certificate-driver-pkcs11 feature is not available"
 
 MYTMP="$(mktemp -d)"
 PT="${MYTMP}/pt"

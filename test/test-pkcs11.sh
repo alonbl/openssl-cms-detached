@@ -15,6 +15,12 @@ die() {
 	exit 1
 }
 
+skip() {
+	local m="$1"
+	echo "SKIP: ${m}" >&2
+	exit 77
+}
+
 MYTMP=
 cleanup() {
 	rm -fr "${MYTMP}"
@@ -174,9 +180,12 @@ test_add_recepients() {
 }
 
 "${MYCMS_TOOL}" --show-commands | grep -q "sane" || die "tool is insane"
-"${MYCMS_TOOL}" --show-commands | grep -q "encrypt" || exit 77
-"${MYCMS_TOOL}" --show-commands | grep -q "decrypt" || exit 77
-"${MYCMS_TOOL}" --show-commands | grep -q "certificate-driver-pkcs11" || exit 77
+"${MYCMS_TOOL}" --show-commands | grep -q "encrypt" || skip "encrypt feature is not available"
+"${MYCMS_TOOL}" --show-commands | grep -q "decrypt" || skip "decrypt feature is not available"
+"${MYCMS_TOOL}" --show-commands | grep -q "certificate-driver-pkcs11" || skip "certificate-driver-pkcs11 feature is not available"
+
+"${SOFTHSM2_UTIL}" --version > /dev/null || skip "softhsm2-util not found"
+"${PKCS11_TOOL}" --version | grep -q "Usage:" || skip "pkcs11-tool not found"
 
 if [ -z "${MODULE}" ]; then
 	for MODULE in /usr/lib64/softhsm/libsofthsm2.so /usr/lib/softhsm/libsofthsm2.so; do
