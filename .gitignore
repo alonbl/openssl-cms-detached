@@ -45,4 +45,4 @@ src/lib/libmycms.pc
 src/lib/mycms-all.exports
 src/tool/mycms-tool
 stamp-h1
-test-*
+test-driver
