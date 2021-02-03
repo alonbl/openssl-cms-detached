@@ -5,7 +5,9 @@ MYCMS_TOOL="${MYCMS_TOOL:-mycms-tool}"
 SOFTHSM2_UTIL="${SOFTHSM2_UTIL:-softhsm2-util}"
 PKCS11_TOOL="${PKCS11_TOOL:-pkcs11-tool}"
 VALGRIND="${VALGRIND:-valgrind}"
-VALGRIND_CMD="${VALGRIND_CMD:-libtool --mode=execute ${VALGRIND}}"
+LIBTOOL="${LIBTOOL:-libtool}"
+
+VALGRIND_CMD="${VALGRIND_CMD:-"${LIBTOOL}" --mode=execute ${VALGRIND}}"
 
 die() {
 	local m="$1"

@@ -21,10 +21,13 @@ dist_noinst_DATA = \
 	$(NULL)
 
 TESTS_ENVIRONMENT = \
+	builddir="$(builddir)" \
+	top_builddir="$(top_builddir)" \
 	MYCMS_TOOL="$(top_builddir)/src/tool/mycms-tool" \
 	SOFTHSM2_UTIL="$(SOFTHSM2_UTIL)" \
 	PKCS11_TOOL="$(PKCS11_TOOL)" \
 	VALGRIND="$(VALGRIND)" \
+	LIBTOOL="$(LIBTOOL)" \
 	$(NULL)
 TESTS = \
 	test-file.sh \

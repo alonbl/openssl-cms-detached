@@ -3,7 +3,9 @@
 srcdir="${srcdir:-.}"
 MYCMS_TOOL="${MYCMS_TOOL:-mycms-tool}"
 VALGRIND="${VALGRIND:-valgrind}"
-VALGRIND_CMD="${VALGRIND_CMD:-libtool --mode=execute ${VALGRIND}}"
+LIBTOOL="${LIBTOOL:-libtool}"
+
+VALGRIND_CMD="${VALGRIND_CMD:-"${LIBTOOL}" --mode=execute ${VALGRIND}}"
 
 die() {
 	local m="$1"
