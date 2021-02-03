@@ -36,8 +36,8 @@ __fixupFixedString(
 ) {
 	char *p;
 
-	p = target+length;
 	memmove (target, source, length);
+	p = target+length;
 	*p = '\0';
 	p--;
 	while (p >= target && *p == ' ') {
@@ -144,6 +144,179 @@ __unload_provider(
 	}
 
 	return CKR_OK;
+}
+
+static
+CK_RV
+__getObjectAttributes(
+	__mycms_certificate_driver_pkcs11 certificate_pkcs11,
+	const CK_OBJECT_HANDLE object,
+	const CK_ATTRIBUTE_PTR attrs,
+	const unsigned count
+) {
+	CK_RV rv = CKR_FUNCTION_FAILED;
+	unsigned i;
+
+	if (
+		(rv = certificate_pkcs11->f->C_GetAttributeValue(
+			certificate_pkcs11->session_handle,
+			object,
+			attrs,
+			count
+		)) != CKR_OK
+	) {
+		goto cleanup;
+	}
+
+	for (i=0;i<count;i++) {
+		if (attrs[i].ulValueLen == (CK_ULONG)-1) {
+			rv = CKR_ATTRIBUTE_VALUE_INVALID;
+			goto cleanup;
+		}
+		else if (attrs[i].ulValueLen == 0) {
+			attrs[i].pValue = NULL;
+		}
+		else {
+			if (
+				(attrs[i].pValue = OPENSSL_zalloc(
+					attrs[i].ulValueLen
+				)) == NULL
+			) {
+				rv = CKR_HOST_MEMORY;
+				goto cleanup;
+			}
+		}
+	}
+
+	if (
+		(rv = certificate_pkcs11->f->C_GetAttributeValue(
+			certificate_pkcs11->session_handle,
+			object,
+			attrs,
+			count
+		)) != CKR_OK
+	) {
+		goto cleanup;
+	}
+
+cleanup:
+
+	return rv;
+}
+
+static
+CK_RV
+__freeObjectAttributes (
+	const CK_ATTRIBUTE_PTR attrs,
+	const unsigned count
+) {
+	unsigned i;
+
+	for (i=0;i<count;i++) {
+		if (attrs[i].pValue != NULL) {
+			OPENSSL_free(attrs[i].pValue);
+			attrs[i].pValue = NULL;
+		}
+	}
+
+	return CKR_OK;
+}
+
+static
+CK_RV
+__findObjects(
+	__mycms_certificate_driver_pkcs11 certificate_pkcs11,
+	const CK_ATTRIBUTE * const filter,
+	const CK_ULONG filter_attrs,
+	CK_OBJECT_HANDLE **const p_objects,
+	CK_ULONG *p_objects_found
+) {
+	int should_FindObjectsFinal = 0;
+	CK_OBJECT_HANDLE *objects = NULL;
+	CK_ULONG objects_size = 0;
+	CK_OBJECT_HANDLE objects_buffer[100];
+	CK_ULONG objects_found;
+	CK_RV rv = CKR_FUNCTION_FAILED;
+
+	*p_objects = NULL;
+	*p_objects_found = 0;
+
+	if (
+		(rv = certificate_pkcs11->f->C_FindObjectsInit(
+			certificate_pkcs11->session_handle,
+			(CK_ATTRIBUTE *)filter,
+			filter_attrs
+		)) != CKR_OK
+	) {
+		goto cleanup;
+	}
+	should_FindObjectsFinal = 1;
+
+	while (
+		(rv = certificate_pkcs11->f->C_FindObjects(
+			certificate_pkcs11->session_handle,
+			objects_buffer,
+			sizeof(objects_buffer) / sizeof(CK_OBJECT_HANDLE),
+			&objects_found
+		)) == CKR_OK &&
+		objects_found > 0
+	) {
+		CK_OBJECT_HANDLE *temp = NULL;
+
+		if (
+			(temp = OPENSSL_zalloc(
+				(objects_size+objects_found) * sizeof(CK_OBJECT_HANDLE)
+			)) == NULL
+		) {
+			rv = CKR_HOST_MEMORY;
+			goto cleanup;
+		}
+
+		if (objects != NULL) {
+			memmove (
+				temp,
+				objects,
+				objects_size * sizeof(CK_OBJECT_HANDLE)
+			);
+		}
+		memmove (
+			temp + objects_size,
+			objects_buffer,
+			objects_found * sizeof(CK_OBJECT_HANDLE)
+		);
+
+		if (objects != NULL) {
+			OPENSSL_free(objects);
+			objects = NULL;
+		}
+
+		objects = temp;
+		objects_size += objects_found;
+		temp = NULL;
+	}
+
+	if (should_FindObjectsFinal) {
+		certificate_pkcs11->f->C_FindObjectsFinal(
+			certificate_pkcs11->session_handle
+		);
+		should_FindObjectsFinal = 0;
+	}
+
+	*p_objects = objects;
+	*p_objects_found = objects_size;
+	objects = NULL;
+	objects_size = 0;
+	rv = CKR_OK;
+
+cleanup:
+
+	if (objects != NULL) {
+		OPENSSL_free(objects);
+		objects = NULL;
+		objects_size = 0;
+	}
+
+	return rv;
 }
 
 static
@@ -256,7 +429,7 @@ __driver_pkcs11_load(
 	char *p;
 	char *module = NULL;
 	char *tokenlabel = NULL;
-	char *keylabel = NULL;
+	char *certlabel = NULL;
 	char pin[512];
 	CK_SLOT_ID_PTR slots = NULL;
 	CK_ULONG slotnum = 0;
@@ -264,6 +437,13 @@ __driver_pkcs11_load(
 	CK_RV rv = CKR_FUNCTION_FAILED;
 	int ret = 0;
 	int found = 0;
+
+	const int CERT_ATTRS_ID = 0;
+	const int CERT_ATTRS_VALUE = 1;
+	CK_ATTRIBUTE cert_attrs[] = {
+		{CKA_ID, NULL, 0},
+		{CKA_VALUE, NULL, 0}
+	};
 
 	if ((work = OPENSSL_strdup(what)) == NULL) {
 		goto cleanup;
@@ -282,7 +462,7 @@ __driver_pkcs11_load(
 	}
 	*p = '\0';
 	p++;
-	keylabel = p;
+	certlabel = p;
 	if ((p = strchr(p, ':')) != NULL) {
 		*p = '\0';
 	}
@@ -343,7 +523,6 @@ __driver_pkcs11_load(
 		} else {
 			char label[sizeof(info.label)+1];
 			__fixupFixedString(label, (char *)info.label, sizeof(info.label));
-
 			if (!strcmp(label, tokenlabel)) {
 				found = 1;
 				break;
@@ -380,15 +559,80 @@ __driver_pkcs11_load(
 		goto cleanup;
 	}
 
-#if 0
-	if (!mycms_certificate_apply_certificate(certificate, &blob)) {
-		goto cleanup;
+	{
+		CK_OBJECT_CLASS c = CKO_CERTIFICATE;
+		const CK_ATTRIBUTE filter[] = {
+			{CKA_CLASS, &c, sizeof(c)},
+			{CKA_LABEL, certlabel, strlen(certlabel)}
+		};
+		CK_OBJECT_HANDLE *objects = NULL;
+		CK_ULONG n;
+		mycms_blob blob;
+
+		if ((rv = __findObjects(
+			certificate_pkcs11,
+			filter,
+			sizeof(filter) / sizeof(*filter),
+			&objects,
+			&n
+		)) != CKR_OK) {
+			goto cleanup;
+		}
+
+		if (n != 1) {
+			goto cleanup;
+		}
+
+		if ((rv = __getObjectAttributes(
+			certificate_pkcs11,
+			objects[0],
+			cert_attrs,
+			sizeof(cert_attrs) / sizeof(*cert_attrs)
+		)) != CKR_OK) {
+			goto cleanup;
+		}
+
+		blob.data = cert_attrs[CERT_ATTRS_VALUE].pValue;
+		blob.size = cert_attrs[CERT_ATTRS_VALUE].ulValueLen;
+		if (!mycms_certificate_apply_certificate(certificate, &blob)) {
+			goto cleanup;
+		}
 	}
-#endif
+
+	{
+		CK_OBJECT_CLASS c = CKO_PRIVATE_KEY;
+		const CK_ATTRIBUTE filter[] = {
+			{CKA_CLASS, &c, sizeof(c)},
+			{CKA_ID, cert_attrs[CERT_ATTRS_ID].pValue, cert_attrs[CERT_ATTRS_ID].ulValueLen}
+		};
+		CK_OBJECT_HANDLE *objects = NULL;
+		CK_ULONG n;
+
+		if ((rv = __findObjects(
+			certificate_pkcs11,
+			filter,
+			sizeof(filter) / sizeof(*filter),
+			&objects,
+			&n
+		)) != CKR_OK) {
+			goto cleanup;
+		}
+
+		if (n != 1) {
+			goto cleanup;
+		}
+
+		certificate_pkcs11->key_handle = objects[0];
+	}
 
 	ret = 1;
 
 cleanup:
+
+	__freeObjectAttributes(
+		cert_attrs,
+		sizeof(cert_attrs) / sizeof(*cert_attrs)
+	);
 
 	if (slots != NULL) {
 		OPENSSL_free(slots);

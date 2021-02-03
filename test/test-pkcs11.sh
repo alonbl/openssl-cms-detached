@@ -60,6 +60,9 @@ prepare_token() {
 			--write-object test${o}.der \
 			|| die "pkcs11-tool.${o}"
 	done
+
+	echo "Token:"
+	"${SOFTHSM2_UTIL}" --show-slots
 }
 
 test_sanity() {
@@ -78,103 +81,14 @@ test_sanity() {
 	echo "Decrypting by test1"
 	doval "${MYCMS_TOOL}" decrypt \
 		--cms-in="${CMS}" \
-		--recip-cert="file:${srcdir}/test1.der:${srcdir}/test1.key" \
+		--recip-cert="pkcs11:${MODULE}:token1:label1" \
+		--recip-cert-pass="pass:secret" \
 		--data-pt="${OUTPT}" \
 		--data-ct="${CT}" \
 		|| die "sanity.decrypt"
+
 	cmp -s "${PT}" "${CT}" && die "sanity.cmp.ct"
 	cmp -s "${PT}" "${OUTPT}" || die "sanity.cmp"
-
-	echo "Decrypting by test2 (should fail)"
-	doval "${MYCMS_TOOL}" decrypt \
-		--cms-in="${CMS}" \
-		--recip-cert="file:${srcdir}/test2.der:${srcdir}/test2.key" \
-		--data-pt="${OUTPT}" \
-		--data-ct="${CT}" \
-		&& die "sanity.decrypt succeeded with other"
-
-	return 0
-}
-
-test_multipile_recepients() {
-	local PREFIX="${MYTMP}/mrecip"
-	local CMS="${PREFIX}-cms"
-	local CT="${PREFIX}-ct1"
-	local OUTPT1="${PREFIX}-pt1"
-	local OUTPT2="${PREFIX}-pt2"
-
-	echo "Encrypting to test1 and test2"
-	doval "${MYCMS_TOOL}" encrypt \
-		--cms-out="${CMS}" \
-		--data-pt="${PT}" \
-		--data-ct="${CT}" \
-		--to="${srcdir}/test1.der" \
-		--to="${srcdir}/test2.der" \
-		|| die "multi-recip.encrypt"
-	echo "Decrypting by test1"
-	doval "${MYCMS_TOOL}" decrypt \
-		--cms-in="${CMS}" \
-		--recip-cert="file:${srcdir}/test1.der:${srcdir}/test1.key" \
-		--data-pt="${OUTPT1}" \
-		--data-ct="${CT}" \
-		|| die "multi-recip.decrypt"
-	cmp -s "${PT}" "${OUTPT1}" || die "sanity.cmp"
-	echo "Decrypting by test2"
-	doval "${MYCMS_TOOL}" decrypt \
-		--cms-in="${CMS}" \
-		--recip-cert="file:${srcdir}/test2.der:${srcdir}/test2.key" \
-		--data-pt="${OUTPT2}" \
-		--data-ct="${CT}" \
-		|| die "multi-recip.decrypt"
-	cmp -s "${PT}" "${OUTPT2}" || die "sanity.cmp"
-
-	return 0
-}
-
-test_add_recepients() {
-	local PREFIX="${MYTMP}/addrecip"
-	local CMS1="${PREFIX}-cms1"
-	local CMS2="${PREFIX}-cms2"
-	local CT="${PREFIX}-ct1"
-	local OUTPT="${PREFIX}-pt"
-
-	echo "Encrypting to test1 and test2"
-	doval "${MYCMS_TOOL}" encrypt \
-		--cms-out="${CMS1}" \
-		--data-pt="${PT}" \
-		--data-ct="${CT}" \
-		--to="${srcdir}/test1.der" \
-		--to="${srcdir}/test2.der" \
-		|| die "add-recip.encrypt"
-
-	echo "Ading to test3 and test4 using test1"
-	doval "${MYCMS_TOOL}" encrypt-add \
-		--cms-in="${CMS1}" \
-		--cms-out="${CMS2}" \
-		--recip-cert="file:${srcdir}/test1.der:${srcdir}/test1.key" \
-		--to="${srcdir}/test3.der" \
-		--to="${srcdir}/test4.der" \
-		#|| die "add-recip.encrypt"
-
-	local x
-	for x in test1 test2 test3 test4; do
-		echo "Decrypting by '${x}'"
-		doval "${MYCMS_TOOL}" decrypt \
-			--cms-in="${CMS2}" \
-			--recip-cert="file:${srcdir}/${x}.der:${srcdir}/${x}.key" \
-			--data-pt="${OUTPT}-${x}" \
-			--data-ct="${CT}" \
-			|| die "add-recip.decrypt.${x}"
-		cmp -s "${PT}" "${OUTPT}-${x}" || die "sanity.cmp"
-	done
-
-	echo "Decrypting by test5 (should fail)"
-	doval "${MYCMS_TOOL}" decrypt \
-		--cms-in="${CMS2}" \
-		--recip-cert="file:${srcdir}/test5.der:${srcdir}/test5.key" \
-		--data-pt="${OUTPT}-test5" \
-		--data-ct="${CT}" \
-		&& die "sanity.decrypt should not succeed"
 
 	return 0
 }
@@ -185,7 +99,7 @@ test_add_recepients() {
 "${MYCMS_TOOL}" --show-commands | grep -q "certificate-driver-pkcs11" || skip "certificate-driver-pkcs11 feature is not available"
 
 "${SOFTHSM2_UTIL}" --version > /dev/null || skip "softhsm2-util not found"
-"${PKCS11_TOOL}" --version | grep -q "Usage:" || skip "pkcs11-tool not found"
+"${PKCS11_TOOL}" --version 2>&1 | grep -q "Usage:" || skip "pkcs11-tool not found"
 
 if [ -z "${MODULE}" ]; then
 	for MODULE in /usr/lib64/softhsm/libsofthsm2.so /usr/lib/softhsm/libsofthsm2.so; do
@@ -204,7 +118,9 @@ mkdir -p "${tokendir}"
 sed "s#@TOKENDIR@#${tokendir}#" softhsm2.conf.in > "${MYTMP}/softhsm2.conf"
 export SOFTHSM2_CONF="${MYTMP}/softhsm2.conf"
 
-TESTS=""
+prepare_token
+
+TESTS="test_sanity"
 
 for test in $TESTS; do
 	echo "------------------------"
