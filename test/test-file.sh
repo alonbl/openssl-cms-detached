@@ -66,7 +66,7 @@ test_sanity() {
 	return 0
 }
 
-test_multipile_recepients() {
+test_multiple_recepients() {
 	local PREFIX="${MYTMP}/mrecip"
 	local CMS="${PREFIX}-cms"
 	local CT="${PREFIX}-ct1"
@@ -158,7 +158,7 @@ MYTMP="$(mktemp -d)"
 PT="${MYTMP}/pt"
 dd if=/dev/urandom bs=512 count=20 of="${PT}" status=none || die "dd plain"
 
-TESTS="test_sanity test_multipile_recepients test_add_recepients"
+TESTS="test_sanity test_multiple_recepients test_add_recepients"
 
 for test in $TESTS; do
 	echo "------------------------"

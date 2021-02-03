@@ -224,27 +224,22 @@ __freeObjectAttributes (
 
 static
 CK_RV
-__findObjects(
+__findObject(
 	__mycms_certificate_driver_pkcs11 certificate_pkcs11,
 	const CK_ATTRIBUTE * const filter,
 	const CK_ULONG filter_attrs,
-	CK_OBJECT_HANDLE **const p_objects,
-	CK_ULONG *p_objects_found
+	CK_OBJECT_HANDLE_PTR object_handle
 ) {
 	int should_FindObjectsFinal = 0;
-	CK_OBJECT_HANDLE *objects = NULL;
-	CK_ULONG objects_size = 0;
-	CK_OBJECT_HANDLE objects_buffer[100];
-	CK_ULONG objects_found;
+	CK_ULONG objects_size;
 	CK_RV rv = CKR_FUNCTION_FAILED;
 
-	*p_objects = NULL;
-	*p_objects_found = 0;
+	*object_handle = __INVALID_OBJECT_HANDLE;
 
 	if (
 		(rv = certificate_pkcs11->f->C_FindObjectsInit(
 			certificate_pkcs11->session_handle,
-			(CK_ATTRIBUTE *)filter,
+			(CK_ATTRIBUTE_PTR)filter,
 			filter_attrs
 		)) != CKR_OK
 	) {
@@ -252,68 +247,28 @@ __findObjects(
 	}
 	should_FindObjectsFinal = 1;
 
-	while (
-		(rv = certificate_pkcs11->f->C_FindObjects(
-			certificate_pkcs11->session_handle,
-			objects_buffer,
-			sizeof(objects_buffer) / sizeof(CK_OBJECT_HANDLE),
-			&objects_found
-		)) == CKR_OK &&
-		objects_found > 0
-	) {
-		CK_OBJECT_HANDLE *temp = NULL;
-
-		if (
-			(temp = OPENSSL_zalloc(
-				(objects_size+objects_found) * sizeof(CK_OBJECT_HANDLE)
-			)) == NULL
-		) {
-			rv = CKR_HOST_MEMORY;
-			goto cleanup;
-		}
-
-		if (objects != NULL) {
-			memmove (
-				temp,
-				objects,
-				objects_size * sizeof(CK_OBJECT_HANDLE)
-			);
-		}
-		memmove (
-			temp + objects_size,
-			objects_buffer,
-			objects_found * sizeof(CK_OBJECT_HANDLE)
-		);
-
-		if (objects != NULL) {
-			OPENSSL_free(objects);
-			objects = NULL;
-		}
-
-		objects = temp;
-		objects_size += objects_found;
-		temp = NULL;
+	if ((rv = certificate_pkcs11->f->C_FindObjects(
+		certificate_pkcs11->session_handle,
+		object_handle,
+		1,
+		&objects_size
+	)) != CKR_OK) {
+		goto cleanup;
 	}
+
+	if (objects_size == 0) {
+		*object_handle = __INVALID_OBJECT_HANDLE;
+	}
+
+	rv = CKR_OK;
+
+cleanup:
 
 	if (should_FindObjectsFinal) {
 		certificate_pkcs11->f->C_FindObjectsFinal(
 			certificate_pkcs11->session_handle
 		);
 		should_FindObjectsFinal = 0;
-	}
-
-	*p_objects = objects;
-	*p_objects_found = objects_size;
-	objects = NULL;
-	objects_size = 0;
-	rv = CKR_OK;
-
-cleanup:
-
-	if (objects != NULL) {
-		OPENSSL_free(objects);
-		objects = NULL;
-		objects_size = 0;
 	}
 
 	return rv;
@@ -565,27 +520,25 @@ __driver_pkcs11_load(
 			{CKA_CLASS, &c, sizeof(c)},
 			{CKA_LABEL, certlabel, strlen(certlabel)}
 		};
-		CK_OBJECT_HANDLE *objects = NULL;
-		CK_ULONG n;
 		mycms_blob blob;
+		CK_OBJECT_HANDLE o;
 
-		if ((rv = __findObjects(
+		if ((rv = __findObject(
 			certificate_pkcs11,
 			filter,
 			sizeof(filter) / sizeof(*filter),
-			&objects,
-			&n
+			&o
 		)) != CKR_OK) {
 			goto cleanup;
 		}
 
-		if (n != 1) {
+		if (o == __INVALID_OBJECT_HANDLE) {
 			goto cleanup;
 		}
 
 		if ((rv = __getObjectAttributes(
 			certificate_pkcs11,
-			objects[0],
+			o,
 			cert_attrs,
 			sizeof(cert_attrs) / sizeof(*cert_attrs)
 		)) != CKR_OK) {
@@ -605,24 +558,19 @@ __driver_pkcs11_load(
 			{CKA_CLASS, &c, sizeof(c)},
 			{CKA_ID, cert_attrs[CERT_ATTRS_ID].pValue, cert_attrs[CERT_ATTRS_ID].ulValueLen}
 		};
-		CK_OBJECT_HANDLE *objects = NULL;
-		CK_ULONG n;
 
-		if ((rv = __findObjects(
+		if ((rv = __findObject(
 			certificate_pkcs11,
 			filter,
 			sizeof(filter) / sizeof(*filter),
-			&objects,
-			&n
+			&certificate_pkcs11->key_handle
 		)) != CKR_OK) {
 			goto cleanup;
 		}
 
-		if (n != 1) {
+		if (certificate_pkcs11->key_handle == __INVALID_OBJECT_HANDLE) {
 			goto cleanup;
 		}
-
-		certificate_pkcs11->key_handle = objects[0];
 	}
 
 	ret = 1;
@@ -633,6 +581,11 @@ cleanup:
 		cert_attrs,
 		sizeof(cert_attrs) / sizeof(*cert_attrs)
 	);
+
+	if (work != NULL) {
+		OPENSSL_free(work);
+		work = NULL;
+	}
 
 	if (slots != NULL) {
 		OPENSSL_free(slots);

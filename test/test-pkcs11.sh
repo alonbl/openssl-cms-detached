@@ -45,7 +45,7 @@ prepare_token() {
 			--private \
 			--sensitive \
 			--id ${o} \
-			--label label${o} \
+			--label test${o} \
 			--type privkey \
 			--write-object test${o}.key \
 			|| die "pkcs11-tool.${o}"
@@ -55,7 +55,7 @@ prepare_token() {
 			--login \
 			--pin secret \
 			--id ${o} \
-			--label label${o} \
+			--label test${o} \
 			--type cert \
 			--write-object test${o}.der \
 			|| die "pkcs11-tool.${o}"
@@ -81,7 +81,7 @@ test_sanity() {
 	echo "Decrypting by test1"
 	doval "${MYCMS_TOOL}" decrypt \
 		--cms-in="${CMS}" \
-		--recip-cert="pkcs11:${MODULE}:token1:label1" \
+		--recip-cert="pkcs11:${MODULE}:token1:test1" \
 		--recip-cert-pass="pass:secret" \
 		--data-pt="${OUTPT}" \
 		--data-ct="${CT}" \
@@ -92,6 +92,49 @@ test_sanity() {
 
 	return 0
 }
+
+test_add_recepients() {
+	local PREFIX="${MYTMP}/addrecip"
+	local CMS1="${PREFIX}-cms1"
+	local CMS2="${PREFIX}-cms2"
+	local CT="${PREFIX}-ct1"
+	local OUTPT="${PREFIX}-pt"
+
+	echo "Encrypting to test1 and test2"
+	doval "${MYCMS_TOOL}" encrypt \
+		--cms-out="${CMS1}" \
+		--data-pt="${PT}" \
+		--data-ct="${CT}" \
+		--to="${srcdir}/test1.der" \
+		--to="${srcdir}/test2.der" \
+		|| die "add-recip.encrypt"
+
+	echo "Ading to test3 and test4 using test1"
+	doval "${MYCMS_TOOL}" encrypt-add \
+		--cms-in="${CMS1}" \
+		--cms-out="${CMS2}" \
+		--recip-cert="pkcs11:${MODULE}:token1:test1" \
+		--recip-cert-pass="pass:secret" \
+		--to="${srcdir}/test3.der" \
+		--to="${srcdir}/test4.der" \
+		#|| die "add-recip.encrypt"
+
+	local x
+	for x in test1 test2 test3 test4; do
+		echo "Decrypting by '${x}'"
+		doval "${MYCMS_TOOL}" decrypt \
+			--cms-in="${CMS2}" \
+			--recip-cert="pkcs11:${MODULE}:token1:${x}" \
+			--recip-cert-pass="pass:secret" \
+			--data-pt="${OUTPT}-${x}" \
+			--data-ct="${CT}" \
+			|| die "add-recip.decrypt.${x}"
+		cmp -s "${PT}" "${OUTPT}-${x}" || die "sanity.cmp"
+	done
+
+	return 0
+}
+
 
 "${MYCMS_TOOL}" --show-commands | grep -q "sane" || die "tool is insane"
 "${MYCMS_TOOL}" --show-commands | grep -q "encrypt" || skip "encrypt feature is not available"
@@ -120,7 +163,7 @@ export SOFTHSM2_CONF="${MYTMP}/softhsm2.conf"
 
 prepare_token
 
-TESTS="test_sanity"
+TESTS="test_sanity test_add_recepients"
 
 for test in $TESTS; do
 	echo "------------------------"
