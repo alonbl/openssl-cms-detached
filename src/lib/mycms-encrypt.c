@@ -15,13 +15,13 @@ static
 STACK_OF(CMS_RecipientInfo) *
 __add_recepients(
 	CMS_ContentInfo *cms,
-	const mycms_blob_list to,
+	const mycms_list_blob to,
 	int flags
 ) {
 	STACK_OF(CMS_RecipientInfo) *ret = NULL;
 	STACK_OF(CMS_RecipientInfo) *added = NULL;
 	X509 *x509 = NULL;
-	mycms_blob_list t;
+	mycms_list_blob t;
 
 	if ((added = sk_CMS_RecipientInfo_new_null()) == NULL) {
 		goto cleanup;
@@ -74,7 +74,7 @@ cleanup:
 int mycms_encrypt(
 	mycms mycms __attribute__((unused)),
 	const EVP_CIPHER *cipher,
-	const mycms_blob_list to,
+	const mycms_list_blob to,
 	BIO *cms_out,
 	BIO *data_pt,
 	BIO *data_ct
@@ -121,7 +121,7 @@ cleanup:
 int mycms_encrypt_add(
 	mycms mycms __attribute__((unused)),
 	const mycms_certificate certificate,
-	const mycms_blob_list to,
+	const mycms_list_blob to,
 	BIO *cms_in,
 	BIO *cms_out
 ) {

@@ -33,7 +33,7 @@ int mycms_decrypt(
 int mycms_encrypt(
 	const mycms mycms,
 	const EVP_CIPHER *cipher,
-	const mycms_blob_list to,
+	const mycms_list_blob to,
 	BIO *cms_out,
 	BIO *data_pt,
 	BIO *data_ct
@@ -42,7 +42,7 @@ int mycms_encrypt(
 int mycms_encrypt_add(
 	const mycms mycms,
 	const mycms_certificate certificate,
-	const mycms_blob_list to,
+	const mycms_list_blob to,
 	BIO *cms_in,
 	BIO *cms_out
 );

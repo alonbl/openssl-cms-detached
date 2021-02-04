@@ -248,7 +248,7 @@ static int cmd_encrypt(int argc, char *argv[]) {
 	BIO *data_ct = NULL;
 
 	mycms mycms = NULL;
-	mycms_blob_list to = NULL;
+	mycms_list_blob to = NULL;
 
 	if ((mycms = mycms_new()) == NULL) {
 		goto cleanup;
@@ -284,7 +284,7 @@ static int cmd_encrypt(int argc, char *argv[]) {
 			break;
 			case OPT_TO:
 				{
-					mycms_blob_list t;
+					mycms_list_blob t;
 
 					if ((t = OPENSSL_zalloc(sizeof(*t))) == NULL) {
 						goto cleanup;
@@ -352,7 +352,7 @@ cleanup:
 	}
 
 	while(to != NULL) {
-		mycms_blob_list t = to;
+		mycms_list_blob t = to;
 		to = to->next;
 		t->next = NULL;
 		OPENSSL_free(t->blob.data);
@@ -392,7 +392,7 @@ static int cmd_encrypt_add(int argc, char *argv[]) {
 	const char * pass_exp = NULL;
 	BIO *cms_in = NULL;
 	BIO *cms_out = NULL;
-	mycms_blob_list to = NULL;
+	mycms_list_blob to = NULL;
 
 	mycms mycms = NULL;
 	mycms_certificate certificate = NULL;
@@ -431,7 +431,7 @@ static int cmd_encrypt_add(int argc, char *argv[]) {
 			break;
 			case OPT_TO:
 				{
-					mycms_blob_list t;
+					mycms_list_blob t;
 
 					if ((t = OPENSSL_zalloc(sizeof(*t))) == NULL) {
 						goto cleanup;
@@ -533,7 +533,7 @@ cleanup:
 	}
 
 	while(to != NULL) {
-		mycms_blob_list t = to;
+		mycms_list_blob t = to;
 		to = to->next;
 		t->next = NULL;
 		OPENSSL_free(t->blob.data);
