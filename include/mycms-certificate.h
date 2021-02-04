@@ -57,6 +57,11 @@ mycms_certificate_destroy(
 	const mycms_certificate certificate
 );
 
+mycms
+mycms_certificate_get_mycms(
+	const mycms_certificate certificate
+);
+
 const void *
 mycms_certificate_get_userdata(
 	const mycms_certificate certificate

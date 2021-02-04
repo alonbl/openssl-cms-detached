@@ -1,5 +1,6 @@
 mycms_certificate_construct
 mycms_certificate_destroy
+mycms_certificate_get_mycms
 mycms_certificate_get_rsa_private_op
 mycms_certificate_get_userdata
 mycms_certificate_load

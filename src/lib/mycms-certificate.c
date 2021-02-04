@@ -286,6 +286,13 @@ mycms_certificate_destroy(
 	return 1;
 }
 
+mycms
+mycms_certificate_get_mycms(
+	const mycms_certificate certificate
+) {
+	return certificate->mycms;
+}
+
 const void *
 mycms_certificate_get_userdata(
 	const mycms_certificate certificate
