@@ -53,7 +53,7 @@ static int __convert_padding(const int padding) {
 
 static
 int
-__mycms_certificate_setup_rsa_evp(
+__setup_rsa_evp(
 	mycms_certificate certificate,
 	EVP_PKEY *evp
 ) {
@@ -86,7 +86,7 @@ cleanup:
 
 static
 mycms_certificate
-__mycms_openssl_get_rsa_certificate(
+__get_rsa_certificate(
 	RSA *rsa
 ) {
 	mycms_certificate certificate = NULL;
@@ -105,7 +105,7 @@ cleanup:
 static
 inline
 int
-__mycms_certificate_rsa_op(
+__rsa_op(
 	int private_op,
 	int flen,
 	const unsigned char *from,
@@ -113,7 +113,7 @@ __mycms_certificate_rsa_op(
 	RSA *rsa,
 	int padding
 ) {
-	mycms_certificate certificate = __mycms_openssl_get_rsa_certificate(rsa);
+	mycms_certificate certificate = __get_rsa_certificate(rsa);
 	int cpadding;
 	int ret = -1;
 
@@ -142,14 +142,14 @@ cleanup:
 
 static
 int
-__mycms_certificate_rsa_enc (
+__openssl_rsa_enc(
 	int flen,
 	const unsigned char *from,
 	unsigned char *to,
 	RSA *rsa,
 	int padding
 ) {
-	return __mycms_certificate_rsa_op(
+	return __rsa_op(
 		MYCMS_PRIVATE_OP_ENCRYPT,
 		flen,
 		from,
@@ -161,14 +161,14 @@ __mycms_certificate_rsa_enc (
 
 static
 int
-__mycms_certificate_rsa_dec (
+__openssl_rsa_dec(
 	int flen,
 	const unsigned char *from,
 	unsigned char *to,
 	RSA *rsa,
 	int padding
 ) {
-	return __mycms_certificate_rsa_op(
+	return __rsa_op(
 		MYCMS_PRIVATE_OP_DECRYPT,
 		flen,
 		from,
@@ -196,10 +196,10 @@ _mycms_certificate_static_init(void) {
 		if (!RSA_meth_set1_name(rsa_method, "mycms")) {
 			goto cleanup;
 		}
-		if (!RSA_meth_set_priv_dec(rsa_method, __mycms_certificate_rsa_dec)) {
+		if (!RSA_meth_set_priv_dec(rsa_method, __openssl_rsa_dec)) {
 			goto cleanup;
 		}
-		if (!RSA_meth_set_priv_enc(rsa_method, __mycms_certificate_rsa_enc)) {
+		if (!RSA_meth_set_priv_enc(rsa_method, __openssl_rsa_enc)) {
 			goto cleanup;
 		}
 #if 0
@@ -388,7 +388,7 @@ mycms_certificate_apply_certificate(
 	switch (EVP_PKEY_id(evp)) {
 #ifndef OPENSSL_NO_RSA
 		case EVP_PKEY_RSA:
-			if (!__mycms_certificate_setup_rsa_evp(certificate, evp)) {
+			if (!__setup_rsa_evp(certificate, evp)) {
 				goto cleanup;
 			}
 		break;

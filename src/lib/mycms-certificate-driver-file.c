@@ -42,7 +42,7 @@ static int __convert_padding(const int padding) {
 
 static
 EVP_PKEY *
-__load_pkey(const char *file) {
+__driver_load_pkey(const char *file) {
 	EVP_PKEY *k = NULL;
 	BIO *bio = NULL;
 
@@ -67,7 +67,7 @@ cleanup:
 #ifndef OPENSSL_NO_RSA
 static
 int
-__driver_file_rsa_private_op(
+__driver_rsa_private_op(
 	const mycms_certificate certificate,
 	const int op,
 	const unsigned char * const from,
@@ -108,7 +108,7 @@ cleanup:
 
 static
 int
-__driver_file_free(
+__driver_free(
 	const mycms_certificate certificate
 ) {
 	__mycms_certificate_driver_file certificate_file = (__mycms_certificate_driver_file)mycms_certificate_get_driverdata(certificate);
@@ -130,7 +130,7 @@ __driver_file_free(
 
 static
 int
-__driver_file_load(
+__driver_load(
 	const mycms_certificate certificate,
 	const char * const what
 ) {
@@ -188,7 +188,7 @@ __driver_file_load(
 		goto cleanup;
 	}
 
-	if ((evp = __load_pkey(key_file)) == NULL) {
+	if ((evp = __driver_load_pkey(key_file)) == NULL) {
 		goto cleanup;
 	}
 
@@ -257,10 +257,10 @@ cleanup:
 int mycms_certificate_driver_file_apply(
 	const mycms_certificate certificate
 ) {
-	mycms_certificate_set_driver_free(certificate, __driver_file_free);
-	mycms_certificate_set_driver_load(certificate, __driver_file_load);
+	mycms_certificate_set_driver_free(certificate, __driver_free);
+	mycms_certificate_set_driver_load(certificate, __driver_load);
 #ifndef OPENSSL_NO_RSA
-	mycms_certificate_set_driver_rsa_private_op(certificate, __driver_file_rsa_private_op);
+	mycms_certificate_set_driver_rsa_private_op(certificate, __driver_rsa_private_op);
 #endif
 	return 1;
 }

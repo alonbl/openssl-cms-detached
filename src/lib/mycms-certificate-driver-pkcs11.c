@@ -276,7 +276,7 @@ cleanup:
 
 static
 int
-__driver_pkcs11_rsa_private_op(
+__driver_rsa_private_op(
 	const mycms_certificate certificate,
 	const int op,
 	const unsigned char * const from,
@@ -350,7 +350,7 @@ cleanup:
 
 static
 int
-__driver_pkcs11_free(
+__driver_free(
 	const mycms_certificate certificate
 ) {
 	__mycms_certificate_driver_pkcs11 certificate_pkcs11 = (__mycms_certificate_driver_pkcs11)mycms_certificate_get_driverdata(certificate);
@@ -375,7 +375,7 @@ __driver_pkcs11_free(
 
 static
 int
-__driver_pkcs11_load(
+__driver_load(
 	const mycms_certificate certificate,
 	const char * const what
 ) {
@@ -598,9 +598,9 @@ cleanup:
 int mycms_certificate_driver_pkcs11_apply(
 	const mycms_certificate certificate
 ) {
-	mycms_certificate_set_driver_free(certificate, __driver_pkcs11_free);
-	mycms_certificate_set_driver_load(certificate, __driver_pkcs11_load);
-	mycms_certificate_set_driver_rsa_private_op(certificate, __driver_pkcs11_rsa_private_op);
+	mycms_certificate_set_driver_free(certificate, __driver_free);
+	mycms_certificate_set_driver_load(certificate, __driver_load);
+	mycms_certificate_set_driver_rsa_private_op(certificate, __driver_rsa_private_op);
 	return 1;
 }
 
