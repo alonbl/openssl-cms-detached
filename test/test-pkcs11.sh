@@ -28,7 +28,7 @@ cleanup() {
 
 doval() {
 	if [ "${DO_VALGRIND}" = 1 ]; then
-		${VALGRIND_CMD} -q --leak-check=full --leak-resolution=high --show-leak-kinds=all --suppressions=test-pkcs11.valgrind.supp --gen-suppressions=all "$@"
+		${VALGRIND_CMD} -q --leak-check=full --leak-resolution=high --show-leak-kinds=all --suppressions="${srcdir}/test-pkcs11.valgrind.supp" --gen-suppressions=all "$@"
 	else
 		"$@"
 	fi
@@ -47,7 +47,7 @@ prepare_token() {
 			--id ${o} \
 			--label test${o} \
 			--type privkey \
-			--write-object test${o}.key \
+			--write-object "${srcdir}/test${o}.key" \
 			|| die "pkcs11-tool.${o}"
 		"${PKCS11_TOOL}" \
 			--module "${MODULE}" \
@@ -57,7 +57,7 @@ prepare_token() {
 			--id ${o} \
 			--label test${o} \
 			--type cert \
-			--write-object test${o}.der \
+			--write-object "${srcdir}/test${o}.der" \
 			|| die "pkcs11-tool.${o}"
 	done
 
@@ -159,7 +159,7 @@ dd if=/dev/urandom bs=512 count=20 of="${PT}" status=none || die "dd plain"
 
 tokendir="${MYTMP}/token"
 mkdir -p "${tokendir}"
-sed "s#@TOKENDIR@#${tokendir}#" softhsm2.conf.in > "${MYTMP}/softhsm2.conf"
+sed "s#@TOKENDIR@#${tokendir}#" "${srcdir}/softhsm2.conf.in" > "${MYTMP}/softhsm2.conf"
 export SOFTHSM2_CONF="${MYTMP}/softhsm2.conf"
 
 prepare_token

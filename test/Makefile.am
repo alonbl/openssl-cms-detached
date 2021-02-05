@@ -8,6 +8,7 @@ dist_noinst_SCRIPTS = \
 	$(NULL)
 
 dist_noinst_DATA = \
+	softhsm2.conf.in \
 	test-pkcs11.valgrind.supp \
 	test1.der \
 	test1.key \
