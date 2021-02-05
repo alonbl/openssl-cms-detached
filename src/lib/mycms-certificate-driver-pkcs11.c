@@ -509,7 +509,7 @@ __driver_load(
 		CK_OBJECT_CLASS c = CKO_CERTIFICATE;
 		const CK_ATTRIBUTE filter[] = {
 			{CKA_CLASS, &c, sizeof(c)},
-			{CKA_LABEL, certlabel, strlen(certlabel)}
+			{CKA_LABEL, (char *)certlabel, strlen(certlabel)}
 		};
 		mycms_blob blob;
 		CK_OBJECT_HANDLE o;
