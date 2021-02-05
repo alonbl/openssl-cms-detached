@@ -128,35 +128,27 @@ static
 int
 __driver_load(
 	const mycms_certificate certificate,
-	const char * const what
+	const mycms_dict parameters
 ) {
 	__mycms_certificate_driver_file certificate_file = NULL;
 
 	EVP_PKEY *evp = NULL;
 
-	int ret = 0;
-	char *work = NULL;
-	char *p;
-	char *cert_file;
-	char *key_file;
-	FILE *fp = NULL;
 	mycms_blob blob = {NULL, 0};
 
-	if ((work = OPENSSL_strdup(what)) == NULL) {
+	const char *cert_file;
+	const char *key_file;
+	FILE *fp = NULL;
+	int ret = 0;
+
+	if ((cert_file = mycms_dict_entry_get(parameters, "cert", NULL)) == NULL) {
 		goto cleanup;
 	}
 
-	p = work;
-	cert_file = p;
-	if ((p = strchr(p, ':')) == NULL) {
+	if ((key_file = mycms_dict_entry_get(parameters, "key", NULL)) == NULL) {
 		goto cleanup;
 	}
-	*p = '\0';
-	p++;
-	key_file = p;
-	if ((p = strchr(p, ':')) != NULL) {
-		*p = '\0';
-	}
+
 
 	if ((fp = fopen(cert_file, "rb")) == NULL) {
 		goto cleanup;
@@ -223,9 +215,6 @@ cleanup:
 		fclose(fp);
 		fp = NULL;
 	}
-
-	OPENSSL_free(work);
-	work = NULL;
 
 	EVP_PKEY_free(evp);
 	evp = NULL;

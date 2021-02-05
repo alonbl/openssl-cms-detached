@@ -81,7 +81,7 @@ test_sanity() {
 	echo "Decrypting by test1"
 	doval "${MYCMS_TOOL}" decrypt \
 		--cms-in="${CMS}" \
-		--recip-cert="pkcs11:${MODULE}:token1:test1" \
+		--recip-cert="pkcs11:module=${MODULE}:token-label=token1:cert-label=test1" \
 		--recip-cert-pass="pass:secret" \
 		--data-pt="${OUTPT}" \
 		--data-ct="${CT}" \
@@ -113,7 +113,7 @@ test_add_recepients() {
 	doval "${MYCMS_TOOL}" encrypt-add \
 		--cms-in="${CMS1}" \
 		--cms-out="${CMS2}" \
-		--recip-cert="pkcs11:${MODULE}:token1:test1" \
+		--recip-cert="pkcs11:module=${MODULE}:token-label=token1:cert-label=test1" \
 		--recip-cert-pass="pass:secret" \
 		--to="${srcdir}/test3.der" \
 		--to="${srcdir}/test4.der" \
@@ -124,7 +124,7 @@ test_add_recepients() {
 		echo "Decrypting by '${x}'"
 		doval "${MYCMS_TOOL}" decrypt \
 			--cms-in="${CMS2}" \
-			--recip-cert="pkcs11:${MODULE}:token1:${x}" \
+			--recip-cert="pkcs11:module=${MODULE}:token-label=token1:cert-label=${x}" \
 			--recip-cert-pass="pass:secret" \
 			--data-pt="${OUTPT}-${x}" \
 			--data-ct="${CT}" \

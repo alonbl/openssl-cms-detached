@@ -5,6 +5,7 @@
 
 #include "mycms-base.h"
 #include "mycms-blob.h"
+#include "mycms-dict.h"
 
 #define MYCMS_PRIVATE_OP_ENCRYPT 0
 #define MYCMS_PRIVATE_OP_DECRYPT 1
@@ -23,7 +24,7 @@ typedef int (*mycms_certificate_driver_free)(
 
 typedef int (*mycms_certificate_driver_load)(
 	const mycms_certificate certificate,
-	const char * const what
+	const mycms_dict dict
 );
 
 typedef int (*mycms_certificate_driver_rsa_private_op)(
@@ -117,7 +118,7 @@ mycms_certificate_apply_certificate(
 int
 mycms_certificate_load(
 	const mycms_certificate certificate,
-	const char * const what
+	const mycms_dict dict
 );
 
 int

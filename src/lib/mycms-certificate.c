@@ -59,7 +59,7 @@ static
 int
 __driver_load_default(
 	const mycms_certificate certificate __attribute__((unused)),
-	const char * const what __attribute__((unused))
+	const mycms_dict dict __attribute__((unused))
 ) {
 	return 0;
 }
@@ -404,9 +404,9 @@ mycms_certificate_set_passphrase_callback(
 int
 mycms_certificate_load(
 	const mycms_certificate certificate,
-	const char * const what
+	const mycms_dict dict
 ) {
-	return certificate->driver_load(certificate, what);
+	return certificate->driver_load(certificate, dict);
 }
 
 int

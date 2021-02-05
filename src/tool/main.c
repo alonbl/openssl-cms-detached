@@ -77,8 +77,6 @@ cleanup:
 	return ret;
 }
 
-#if defined(ENABLE_CMS_DECRYPT) || defined(ENABLE_CMS_DECRYPT)
-
 static
 int
 __load_cert(
@@ -132,11 +130,9 @@ cleanup:
 	return ret;
 }
 
-#endif
-
 static
 void
-chop(const char *s) {
+__util_chip(const char *s) {
 	if (s != NULL) {
 		char *p;
 		if ((p = strchr(s, '\n')) != NULL) {
@@ -150,7 +146,7 @@ chop(const char *s) {
 
 static
 int
-mygetpass(
+__util_getpass(
 	const char * const exp,
 	char * const pass,
 	const size_t size
@@ -193,7 +189,7 @@ mygetpass(
 				goto cleanup;
 			}
 			pass[size-1] = '\0';
-			chop(pass);
+			__util_chip(pass);
 		}
 	} else if (!strncmp(exp, PASS_FD, sizeof(PASS_FD)-1)) {
 		int fd = atoi(p);
@@ -204,7 +200,7 @@ mygetpass(
 		}
 
 		pass[s] = '\0';
-		chop(pass);
+		__util_chip(pass);
 	} else {
 		goto cleanup;
 	}
@@ -229,8 +225,54 @@ __passphrase_callback(
 		*p = NULL;
 		return 1;
 	} else {
-		return mygetpass(exp, *p, size);
+		return __util_getpass(exp, *p, size);
 	}
+}
+
+static
+int
+__split_string(
+	const mycms_dict dict,
+	const char * const str
+) {
+	char *s = NULL;
+	char *p0;
+	char *p1;
+	char *p2;
+	int ret = 0;
+
+	if ((s = OPENSSL_strdup(str)) == NULL) {
+		goto cleanup;
+	}
+
+	p0 = s;
+
+	while (p0 != NULL) {
+		if ((p1 = strchr(p0, ':')) != NULL) {
+			*p1 = '\0';
+			p1++;
+		}
+
+		if ((p2 = strchr(p0, '=')) != NULL) {
+			*p2 = '\0';
+			p2++;
+
+			if (!mycms_dict_entry_put(dict, p0, p2)) {
+				goto cleanup;
+			}
+		}
+
+		p0 = p1;
+	}
+
+	ret = 1;
+
+cleanup:
+
+	OPENSSL_free(s);
+	s = NULL;
+
+	return ret;
 }
 
 #if defined(ENABLE_CMS_ENCRYPT)
@@ -347,25 +389,17 @@ static int __cmd_encrypt(int argc, char *argv[]) {
 
 cleanup:
 
-	if (mycms != NULL) {
-		mycms_destroy(mycms);
-		mycms = NULL;
-	}
+	mycms_destroy(mycms);
+	mycms = NULL;
 
-	if (cms_out != NULL) {
-		BIO_free(cms_out);
-		cms_out = NULL;
-	}
+	BIO_free(cms_out);
+	cms_out = NULL;
 
-	if (data_pt != NULL) {
-		BIO_free(data_pt);
-		data_pt = NULL;
-	}
+	BIO_free(data_pt);
+	data_pt = NULL;
 
-	if (data_ct != NULL) {
-		BIO_free(data_ct);
-		data_ct = NULL;
-	}
+	BIO_free(data_ct);
+	data_ct = NULL;
 
 	while(to != NULL) {
 		mycms_list_blob t = to;
@@ -380,7 +414,7 @@ cleanup:
 }
 
 
-static int ____cmd_encrypt_add(int argc, char *argv[]) {
+static int __cmd_encrypt_add(int argc, char *argv[]) {
 	enum {
 		OPT_HELP = 0x1000,
 		OPT_CMS_IN,
@@ -411,6 +445,7 @@ static int ____cmd_encrypt_add(int argc, char *argv[]) {
 	mycms_list_blob to = NULL;
 
 	mycms mycms = NULL;
+	mycms_dict dict = NULL;
 	mycms_certificate certificate = NULL;
 
 	while ((option = getopt_long(argc, argv, "", long_options, NULL)) != -1) {
@@ -493,6 +528,18 @@ static int ____cmd_encrypt_add(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
+	if ((dict = mycms_dict_new(mycms)) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_dict_construct(dict)) {
+		goto cleanup;
+	}
+
+	if (!__split_string(dict, certificate_exp)) {
+		goto cleanup;
+	}
+
 	if (!mycms_certificate_construct(certificate)) {
 		goto cleanup;
 	}
@@ -515,7 +562,7 @@ static int ____cmd_encrypt_add(int argc, char *argv[]) {
 		}
 	}
 
-	if (!mycms_certificate_load(certificate, certificate_exp)) {
+	if (!mycms_certificate_load(certificate, dict)) {
 		goto cleanup;
 	}
 
@@ -528,25 +575,20 @@ static int ____cmd_encrypt_add(int argc, char *argv[]) {
 
 cleanup:
 
-	if (certificate != NULL) {
-		mycms_certificate_destroy(certificate);
-		certificate = NULL;
-	}
+	mycms_certificate_destroy(certificate);
+	certificate = NULL;
 
-	if (mycms != NULL) {
-		mycms_destroy(mycms);
-		mycms = NULL;
-	}
+	mycms_dict_destroy(dict);
+	dict = NULL;
 
-	if (cms_in != NULL) {
-		BIO_free(cms_in);
-		cms_in = NULL;
-	}
+	mycms_destroy(mycms);
+	mycms = NULL;
 
-	if (cms_out != NULL) {
-		BIO_free(cms_out);
-		cms_out = NULL;
-	}
+	BIO_free(cms_in);
+	cms_in = NULL;
+
+	BIO_free(cms_out);
+	cms_out = NULL;
 
 	while(to != NULL) {
 		mycms_list_blob t = to;
@@ -595,6 +637,7 @@ static int __cmd_decrypt(int argc, char *argv[]) {
 	BIO *data_ct = NULL;
 
 	mycms mycms = NULL;
+	mycms_dict dict = NULL;
 	mycms_certificate certificate = NULL;
 
 	while ((option = getopt_long(argc, argv, "", long_options, NULL)) != -1) {
@@ -662,6 +705,18 @@ static int __cmd_decrypt(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
+	if ((dict = mycms_dict_new(mycms)) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_dict_construct(dict)) {
+		goto cleanup;
+	}
+
+	if (!__split_string(dict, certificate_exp)) {
+		goto cleanup;
+	}
+
 	if ((certificate = mycms_certificate_new(mycms)) == NULL) {
 		goto cleanup;
 	}
@@ -688,7 +743,7 @@ static int __cmd_decrypt(int argc, char *argv[]) {
 		}
 	}
 
-	if (!mycms_certificate_load(certificate, certificate_exp)) {
+	if (!mycms_certificate_load(certificate, dict)) {
 		goto cleanup;
 	}
 
@@ -701,30 +756,23 @@ static int __cmd_decrypt(int argc, char *argv[]) {
 
 cleanup:
 
-	if (certificate != NULL) {
-		mycms_certificate_destroy(certificate);
-		certificate = NULL;
-	}
+	mycms_certificate_destroy(certificate);
+	certificate = NULL;
 
-	if (mycms != NULL) {
-		mycms_destroy(mycms);
-		mycms = NULL;
-	}
+	mycms_dict_destroy(dict);
+	dict = NULL;
 
-	if (cms_in != NULL) {
-		BIO_free(cms_in);
-		cms_in = NULL;
-	}
+	mycms_destroy(mycms);
+	mycms = NULL;
 
-	if (data_pt != NULL) {
-		BIO_free(data_pt);
-		data_pt = NULL;
-	}
+	BIO_free(cms_in);
+	cms_in = NULL;
 
-	if (data_ct != NULL) {
-		BIO_free(data_ct);
-		data_ct = NULL;
-	}
+	BIO_free(data_pt);
+	data_pt = NULL;
+
+	BIO_free(data_ct);
+	data_ct = NULL;
 
 	return ret;
 }
@@ -786,7 +834,7 @@ int main(int argc, char *argv[]) {
 	} else if (!strcmp("encrypt", command)) {
 		ret = __cmd_encrypt(argc, argv);
 	} else if (!strcmp("encrypt-add", command)) {
-		ret = ____cmd_encrypt_add(argc, argv);
+		ret = __cmd_encrypt_add(argc, argv);
 #endif
 #if defined(ENABLE_CMS_DECRYPT)
 	} else if (!strcmp("decrypt", command)) {

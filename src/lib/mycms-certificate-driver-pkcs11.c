@@ -69,7 +69,8 @@ static
 CK_RV
 __load_provider(
 	const __mycms_certificate_driver_pkcs11 certificate_pkcs11,
-	const char * const module
+	const char * const module,
+	const char * const reserved
 ) {
 	void *p;
 
@@ -103,7 +104,8 @@ __load_provider(
 	}
 
 	memset(&initargs, 0, sizeof(initargs));
-	if ((initargs.pReserved = getenv("PKCS11H_INIT_ARGS_RESERVED")) != NULL) {
+	if (reserved != NULL) {
+		initargs.pReserved = (char *)reserved;
 		pinitargs = &initargs;
 	}
 
@@ -134,9 +136,7 @@ __unload_provider(
 		certificate_pkcs11->should_finalize = 0;
 	}
 
-	if (certificate_pkcs11->f != NULL) {
-		certificate_pkcs11->f = NULL;
-	}
+	certificate_pkcs11->f = NULL;
 
 	if (certificate_pkcs11->module_handle != NULL) {
 		dlclose (certificate_pkcs11->module_handle);
@@ -375,19 +375,22 @@ static
 int
 __driver_load(
 	const mycms_certificate certificate,
-	const char * const what
+	const mycms_dict parameters
 ) {
 	__mycms_certificate_driver_pkcs11 certificate_pkcs11 = NULL;
-	char *work = NULL;
-	char *p;
-	char *module = NULL;
-	char *tokenlabel = NULL;
-	char *certlabel = NULL;
-	char pin[512];
+
 	CK_SLOT_ID_PTR slots = NULL;
 	CK_ULONG slotnum = 0;
 	CK_ULONG slot_index;
 	CK_RV rv = CKR_FUNCTION_FAILED;
+
+	const char *module = NULL;
+	const char *tokenlabel = NULL;
+	const char *certlabel = NULL;
+
+	char pin[512];
+	char *p;
+
 	int ret = 0;
 	int found = 0;
 
@@ -398,26 +401,16 @@ __driver_load(
 		{CKA_VALUE, NULL, 0}
 	};
 
-	if ((work = OPENSSL_strdup(what)) == NULL) {
+	if ((module = mycms_dict_entry_get(parameters, "module", NULL)) == NULL) {
 		goto cleanup;
 	}
 
-	p = work;
-	module = p;
-	if ((p = strchr(p, ':')) == NULL) {
+	if ((tokenlabel = mycms_dict_entry_get(parameters, "token-label", NULL)) == NULL) {
 		goto cleanup;
 	}
-	*p = '\0';
-	p++;
-	tokenlabel = p;
-	if ((p = strchr(p, ':')) == NULL) {
+
+	if ((certlabel = mycms_dict_entry_get(parameters, "cert-label", NULL)) == NULL) {
 		goto cleanup;
-	}
-	*p = '\0';
-	p++;
-	certlabel = p;
-	if ((p = strchr(p, ':')) != NULL) {
-		*p = '\0';
 	}
 
 	if ((certificate_pkcs11 = OPENSSL_zalloc(sizeof(*certificate_pkcs11))) == NULL) {
@@ -430,7 +423,7 @@ __driver_load(
 		goto cleanup;
 	}
 
-	if ((rv = __load_provider(certificate_pkcs11, module)) != CKR_OK) {
+	if ((rv = __load_provider(certificate_pkcs11, module, mycms_dict_entry_get(parameters, "init-reserved", NULL))) != CKR_OK) {
 		goto cleanup;
 	}
 
@@ -581,9 +574,6 @@ cleanup:
 		cert_attrs,
 		sizeof(cert_attrs) / sizeof(*cert_attrs)
 	);
-
-	OPENSSL_free(work);
-	work = NULL;
 
 	OPENSSL_free(slots);
 	slots = NULL;
