@@ -61,11 +61,7 @@ mycms_dict_destroy(
 	const mycms_dict dict
 ) {
 	if (dict != NULL) {
-		while(dict->head != NULL) {
-			mycms_list_dict_entry t = dict->head;
-			dict->head = dict->head->next;
-			__free_entry(t);
-		}
+		mycms_dict_entry_clear(dict);
 		OPENSSL_free(dict);
 	}
 	return 1;
@@ -76,6 +72,19 @@ mycms_dict_get_mycms(
 	const mycms_dict dict
 ) {
 	return dict->mycms;
+}
+
+int
+mycms_dict_entry_clear(
+	const mycms_dict dict
+) {
+	while(dict->head != NULL) {
+		mycms_list_dict_entry t = dict->head;
+		dict->head = dict->head->next;
+		__free_entry(t);
+	}
+
+	return 1;
 }
 
 int

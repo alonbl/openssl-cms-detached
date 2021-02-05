@@ -2,10 +2,8 @@
 #include <config.h>
 #endif
 
-#include <getopt.h>
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
 
 #include <openssl/evp.h>
 #include <openssl/err.h>
@@ -15,10 +13,9 @@
 #include <mycms-certificate-driver-pkcs11.h>
 
 #include "getoptutil.h"
+#include "util.h"
 
-typedef int (*certificate_apply)(const mycms_certificate c);
-
-static const char *FEATURES[] = {
+static const char *__FEATURES[] = {
 	"sane",
 #if defined(ENABLE_CERTIFICATE_DRIVER_FILE)
 	"certificate-driver-file",
@@ -35,27 +32,75 @@ static const char *FEATURES[] = {
 	NULL
 };
 
+typedef int (*certificate_driver_apply)(const mycms_certificate c);
+typedef const char *(*certificate_driver_usage)(void);
 static const struct certificate_driver_s {
 	const char *name;
-	certificate_apply p;
+	certificate_driver_usage u;
+	certificate_driver_apply p;
 } __CERTIFICATE_DRIVERS[] = {
 #ifdef ENABLE_CERTIFICATE_DRIVER_FILE
-	{"file", mycms_certificate_driver_file_apply},
+	{"file", mycms_certificate_driver_file_usage, mycms_certificate_driver_file_apply},
 #endif
 #ifdef ENABLE_CERTIFICATE_DRIVER_PKCS11
-	{"pkcs11", mycms_certificate_driver_pkcs11_apply},
+	{"pkcs11", mycms_certificate_driver_pkcs11_usage, mycms_certificate_driver_pkcs11_apply},
 #endif
-	{NULL, NULL}
+	{NULL, NULL, NULL}
 };
 
 static
-certificate_apply
+void
+__extra_usage() {
+	static const struct pass_s {
+		const char *k;
+		const char *u;
+	} PASS_USAGE[] = {
+		{"pass:string", "read passphrase from string"},
+		{"env:key", "read the passphrase from environment"},
+		{"file:name", "read the passphrase from file"},
+		{"fd:n", "read the passphrase from file descriptor"},
+		{NULL, NULL}
+	};
+	const struct certificate_driver_s *sd;
+	const struct pass_s *pu;
+
+	printf("\nPASSPHRASE_EXPRESSION\n");
+	for (pu = PASS_USAGE; pu->k != NULL; pu++) {
+		printf("%4s%-16s- %s\n", "", pu->k, pu->u);
+	}
+
+	printf("\nCERTIFICATE_EXPRESSION\n%4sdriver:attribute=value:attribute=value\n", "");
+
+	printf("\n%4sAvailable certificate drivers:\n", "");
+	for (sd = __CERTIFICATE_DRIVERS; sd->name != NULL; sd++) {
+		char x[1024];
+		char *p1;
+		char *p2;
+
+		strncpy(x, sd->u(), sizeof(x) - 1);
+		x[sizeof(x) - 1] = '\0';
+
+		printf("%8s%s: attributes:\n", "", sd->name);
+		p1 = x;
+		while (p1 != NULL) {
+			if ((p2 = strchr(p1, '\n')) != NULL) {
+				*p2 = '\0';
+				p2++;
+			}
+			printf("%12s%s\n", "", p1);
+			p1 = p2;
+		}
+	}
+}
+
+static
+certificate_driver_apply
 __get_certificate_driver(
 	const char ** what
 ) {
 	const struct certificate_driver_s *sd = __CERTIFICATE_DRIVERS;
 	const char *p;
-	certificate_apply ret = NULL;
+	certificate_driver_apply ret = NULL;
 
 	if (what == NULL || *what == NULL) {
 		goto cleanup;
@@ -134,88 +179,6 @@ cleanup:
 }
 
 static
-void
-__util_chip(const char *s) {
-	if (s != NULL) {
-		char *p;
-		if ((p = strchr(s, '\n')) != NULL) {
-			*p = '\0';
-		}
-		if ((p = strchr(s, '\r')) != NULL) {
-			*p = '\0';
-		}
-	}
-}
-
-static
-int
-__util_getpass(
-	const char * const exp,
-	char * const pass,
-	const size_t size
-) {
-	static const char PASS_PASS[] = "pass:";
-	static const char PASS_ENV[] = "env:";
-	static const char PASS_FILE[] = "file:";
-	static const char PASS_FD[] = "fd:";
-
-	char *p;
-	int ret = 0;
-
-	if (exp == NULL || pass == NULL) {
-		goto cleanup;
-	}
-
-	if ((p = strchr(exp, ':')) == NULL) {
-		goto cleanup;
-	}
-	p++;
-
-	if (!strncmp(exp, PASS_PASS, sizeof(PASS_PASS)-1)) {
-		if (strlen(p) >= size) {
-			goto cleanup;
-		}
-		strcpy(pass, p);
-	} else if (!strncmp(exp, PASS_ENV, sizeof(PASS_ENV)-1)) {
-		char *x = getenv(p);
-		if (x == NULL || strlen(x) >= size) {
-			goto cleanup;
-		}
-		strcpy(pass, x);
-	} else if (!strncmp(exp, PASS_FILE, sizeof(PASS_FILE)-1)) {
-		FILE *fp;
-
-		if ((fp = fopen(p, "r")) != NULL) {
-			char *x = fgets(pass, size, fp);
-			fclose(fp);
-			if (x == NULL) {
-				goto cleanup;
-			}
-			pass[size-1] = '\0';
-			__util_chip(pass);
-		}
-	} else if (!strncmp(exp, PASS_FD, sizeof(PASS_FD)-1)) {
-		int fd = atoi(p);
-		ssize_t s;
-
-		if ((s = read(fd, pass, size - 1)) == -1) {
-			goto cleanup;
-		}
-
-		pass[s] = '\0';
-		__util_chip(pass);
-	} else {
-		goto cleanup;
-	}
-
-	ret = 1;
-
-cleanup:
-
-	return ret;
-}
-
-static
 int
 __passphrase_callback(
 	const mycms_certificate certificate,
@@ -228,54 +191,8 @@ __passphrase_callback(
 		*p = NULL;
 		return 1;
 	} else {
-		return __util_getpass(exp, *p, size);
+		return util_getpass(exp, *p, size);
 	}
-}
-
-static
-int
-__split_string(
-	const mycms_dict dict,
-	const char * const str
-) {
-	char *s = NULL;
-	char *p0;
-	char *p1;
-	char *p2;
-	int ret = 0;
-
-	if ((s = OPENSSL_strdup(str)) == NULL) {
-		goto cleanup;
-	}
-
-	p0 = s;
-
-	while (p0 != NULL) {
-		if ((p1 = strchr(p0, ':')) != NULL) {
-			*p1 = '\0';
-			p1++;
-		}
-
-		if ((p2 = strchr(p0, '=')) != NULL) {
-			*p2 = '\0';
-			p2++;
-
-			if (!mycms_dict_entry_put(dict, p0, p2)) {
-				goto cleanup;
-			}
-		}
-
-		p0 = p1;
-	}
-
-	ret = 1;
-
-cleanup:
-
-	OPENSSL_free(s);
-	s = NULL;
-
-	return ret;
 }
 
 #if defined(ENABLE_CMS_ENCRYPT)
@@ -465,6 +382,7 @@ static int __cmd_encrypt_add(int argc, char *argv[]) {
 		switch (option) {
 			case OPT_HELP:
 				getoptutil_usage(stdout, argv[0], "", long_options);
+				__extra_usage();
 				ret = 0;
 				goto cleanup;
 			case OPT_CMS_IN:
@@ -549,7 +467,7 @@ static int __cmd_encrypt_add(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
-	if (!__split_string(dict, certificate_exp)) {
+	if (!util_split_string(dict, certificate_exp)) {
 		goto cleanup;
 	}
 
@@ -566,7 +484,7 @@ static int __cmd_encrypt_add(int argc, char *argv[]) {
 	}
 
 	{
-		certificate_apply x;
+		certificate_driver_apply x;
 		if ((x = __get_certificate_driver(&certificate_exp)) == NULL) {
 			goto cleanup;
 		}
@@ -662,6 +580,7 @@ static int __cmd_decrypt(int argc, char *argv[]) {
 		switch (option) {
 			case OPT_HELP:
 				getoptutil_usage(stdout, argv[0], "", long_options);
+				__extra_usage();
 				ret = 0;
 				goto cleanup;
 			case OPT_CMS_IN:
@@ -731,7 +650,7 @@ static int __cmd_decrypt(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
-	if (!__split_string(dict, certificate_exp)) {
+	if (!util_split_string(dict, certificate_exp)) {
 		goto cleanup;
 	}
 
@@ -752,7 +671,7 @@ static int __cmd_decrypt(int argc, char *argv[]) {
 	}
 
 	{
-		certificate_apply x;
+		certificate_driver_apply x;
 		if ((x = __get_certificate_driver(&certificate_exp)) == NULL) {
 			goto cleanup;
 		}
@@ -855,7 +774,7 @@ int main(int argc, char *argv[]) {
 				printf("Features: ");
 				{
 					const char **p;
-					for (p = FEATURES; *p != NULL; p++) {
+					for (p = __FEATURES; *p != NULL; p++) {
 						printf(" %s", *p);
 					}
 				}

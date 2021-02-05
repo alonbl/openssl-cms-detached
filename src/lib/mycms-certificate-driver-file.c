@@ -233,6 +233,14 @@ cleanup:
 	return ret;
 }
 
+const char *
+mycms_certificate_driver_file_usage(void) {
+	return (
+		"cert: DER encoded certificate file\n"
+		"key: DER encoded PKCS#8 file\n"
+	);
+}
+
 int mycms_certificate_driver_file_apply(
 	const mycms_certificate certificate
 ) {

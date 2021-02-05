@@ -31,6 +31,11 @@ mycms_dict_get_mycms(
 );
 
 int
+mycms_dict_entry_clear(
+	const mycms_dict dict
+);
+
+int
 mycms_dict_entry_put(
 	const mycms_dict dict,
 	const char * const k,

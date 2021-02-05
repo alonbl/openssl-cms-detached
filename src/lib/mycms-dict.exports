@@ -1,3 +1,4 @@
+mycms_dict_clear
 mycms_dict_construct
 mycms_dict_destroy
 mycms_dict_entry_del

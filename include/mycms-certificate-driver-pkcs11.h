@@ -3,6 +3,9 @@
 
 #include <mycms-certificate.h>
 
+const char *
+mycms_certificate_driver_pkcs11_usage(void);
+
 int
 mycms_certificate_driver_pkcs11_apply(
 	const mycms_certificate certificate

@@ -581,6 +581,16 @@ cleanup:
 	return ret;
 }
 
+const char *
+mycms_certificate_driver_pkcs11_usage(void) {
+	return (
+		"module: PKCS#11 module to load\n"
+		"token-label: token label\n"
+		"cert-label: certificate label\n"
+		"init-reserved: reserved C_Initialize argument\n"
+	);
+}
+
 int mycms_certificate_driver_pkcs11_apply(
 	const mycms_certificate certificate
 ) {
