@@ -59,14 +59,11 @@ __add_recepients(
 	added = NULL;
 
 cleanup:
-	if (x509 != NULL) {
-		X509_free(x509);
-	}
+	X509_free(x509);
+	x509 = NULL;
 
-	if (added != NULL) {
-		sk_CMS_RecipientInfo_free(added);
-		added = NULL;
-	}
+	sk_CMS_RecipientInfo_free(added);
+	added = NULL;
 
 	return ret;
 }
@@ -105,15 +102,11 @@ int mycms_encrypt(
 
 cleanup:
 
-	if (added != NULL) {
-		sk_CMS_RecipientInfo_free(added);
-		added = NULL;
-	}
+	sk_CMS_RecipientInfo_free(added);
+	added = NULL;
 
-	if (cms != NULL ) {
-		CMS_ContentInfo_free(cms);
-		cms = NULL;
-	}
+	CMS_ContentInfo_free(cms);
+	cms = NULL;
 
 	return ret;
 }
@@ -164,15 +157,11 @@ int mycms_encrypt_add(
 
 cleanup:
 
-	if (added != NULL) {
-		sk_CMS_RecipientInfo_free(added);
-		added = NULL;
-	}
+	sk_CMS_RecipientInfo_free(added);
+	added = NULL;
 
-	if (cms != NULL ) {
-		CMS_ContentInfo_free(cms);
-		cms = NULL;
-	}
+	CMS_ContentInfo_free(cms);
+	cms = NULL;
 
 	return ret;
 }

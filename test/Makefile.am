@@ -8,6 +8,7 @@ dist_noinst_SCRIPTS = \
 	$(NULL)
 
 dist_noinst_DATA = \
+	test-pkcs11.valgrind.supp \
 	test1.der \
 	test1.key \
 	test2.der \

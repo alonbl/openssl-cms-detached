@@ -28,7 +28,7 @@ cleanup() {
 
 doval() {
 	if [ "${DO_VALGRIND}" = 1 ]; then
-		${VALGRIND_CMD} -q --leak-check=full --leak-resolution=high --show-leak-kinds=all "$@"
+		${VALGRIND_CMD} -q --leak-check=full --leak-resolution=high --show-leak-kinds=all --suppressions=test-pkcs11.valgrind.supp --gen-suppressions=all "$@"
 	else
 		"$@"
 	fi

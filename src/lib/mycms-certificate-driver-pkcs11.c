@@ -29,7 +29,7 @@ typedef struct __mycms_certificate_driver_pkcs11_s *__mycms_certificate_driver_p
 
 static
 void
-__fixupFixedString(
+__fixup_fixed_string(
 	char * const target,			/* MUST BE >= length+1 */
 	const char * const source,
 	const size_t length			/* FIXED STRING LENGTH */
@@ -148,7 +148,7 @@ __unload_provider(
 
 static
 CK_RV
-__getObjectAttributes(
+__get_object_attributes(
 	__mycms_certificate_driver_pkcs11 certificate_pkcs11,
 	const CK_OBJECT_HANDLE object,
 	const CK_ATTRIBUTE_PTR attrs,
@@ -206,17 +206,15 @@ cleanup:
 
 static
 CK_RV
-__freeObjectAttributes (
+__free_attributes (
 	const CK_ATTRIBUTE_PTR attrs,
 	const unsigned count
 ) {
 	unsigned i;
 
 	for (i=0;i<count;i++) {
-		if (attrs[i].pValue != NULL) {
-			OPENSSL_free(attrs[i].pValue);
-			attrs[i].pValue = NULL;
-		}
+		OPENSSL_free(attrs[i].pValue);
+		attrs[i].pValue = NULL;
 	}
 
 	return CKR_OK;
@@ -224,7 +222,7 @@ __freeObjectAttributes (
 
 static
 CK_RV
-__findObject(
+__find_object(
 	__mycms_certificate_driver_pkcs11 certificate_pkcs11,
 	const CK_ATTRIBUTE * const filter,
 	const CK_ULONG filter_attrs,
@@ -477,7 +475,7 @@ __driver_load(
 		)) != CKR_OK) {
 		} else {
 			char label[sizeof(info.label)+1];
-			__fixupFixedString(label, (char *)info.label, sizeof(info.label));
+			__fixup_fixed_string(label, (char *)info.label, sizeof(info.label));
 			if (!strcmp(label, tokenlabel)) {
 				found = 1;
 				break;
@@ -523,7 +521,7 @@ __driver_load(
 		mycms_blob blob;
 		CK_OBJECT_HANDLE o;
 
-		if ((rv = __findObject(
+		if ((rv = __find_object(
 			certificate_pkcs11,
 			filter,
 			sizeof(filter) / sizeof(*filter),
@@ -536,7 +534,7 @@ __driver_load(
 			goto cleanup;
 		}
 
-		if ((rv = __getObjectAttributes(
+		if ((rv = __get_object_attributes(
 			certificate_pkcs11,
 			o,
 			cert_attrs,
@@ -559,7 +557,7 @@ __driver_load(
 			{CKA_ID, cert_attrs[CERT_ATTRS_ID].pValue, cert_attrs[CERT_ATTRS_ID].ulValueLen}
 		};
 
-		if ((rv = __findObject(
+		if ((rv = __find_object(
 			certificate_pkcs11,
 			filter,
 			sizeof(filter) / sizeof(*filter),
@@ -577,20 +575,18 @@ __driver_load(
 
 cleanup:
 
-	__freeObjectAttributes(
+	OPENSSL_cleanse(pin, sizeof(pin));
+
+	__free_attributes(
 		cert_attrs,
 		sizeof(cert_attrs) / sizeof(*cert_attrs)
 	);
 
-	if (work != NULL) {
-		OPENSSL_free(work);
-		work = NULL;
-	}
+	OPENSSL_free(work);
+	work = NULL;
 
-	if (slots != NULL) {
-		OPENSSL_free(slots);
-		slots = NULL;
-	}
+	OPENSSL_free(slots);
+	slots = NULL;
 
 	return ret;
 }

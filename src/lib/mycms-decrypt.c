@@ -38,10 +38,8 @@ int mycms_decrypt(
 
 cleanup:
 
-	if (cms != NULL ) {
-		CMS_ContentInfo_free(cms);
-		cms = NULL;
-	}
+	CMS_ContentInfo_free(cms);
+	cms = NULL;
 
 	return ret;
 }

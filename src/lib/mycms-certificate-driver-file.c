@@ -56,10 +56,8 @@ __driver_load_pkey(const char *file) {
 
 cleanup:
 
-	if (bio != NULL) {
-		BIO_free(bio);
-		bio = NULL;
-	}
+	BIO_free(bio);
+	bio = NULL;
 
 	return k;
 }
@@ -117,10 +115,8 @@ __driver_free(
 
 	if (certificate_file != NULL) {
 		#ifndef OPENSSL_NO_RSA
-			if (certificate_file->rsa != NULL) {
-				RSA_free(certificate_file->rsa);
-				certificate_file->rsa = NULL;
-			}
+			RSA_free(certificate_file->rsa);
+			certificate_file->rsa = NULL;
 		#endif
 		OPENSSL_free(certificate_file);
 	}
@@ -220,25 +216,19 @@ __driver_load(
 	ret = 1;
 
 cleanup:
-	if (blob.data != NULL) {
-		OPENSSL_free(blob.data);
-		blob.data = NULL;
-	}
+	OPENSSL_free(blob.data);
+	blob.data = NULL;
 
 	if (fp != NULL) {
 		fclose(fp);
 		fp = NULL;
 	}
 
-	if (work != NULL) {
-		OPENSSL_free(work);
-		work = NULL;
-	}
+	OPENSSL_free(work);
+	work = NULL;
 
-	if (evp != NULL) {
-		EVP_PKEY_free(evp);
-		evp = NULL;
-	}
+	EVP_PKEY_free(evp);
+	evp = NULL;
 
 	if (certificate_file != NULL) {
 #ifndef OPENSSL_NO_RSA

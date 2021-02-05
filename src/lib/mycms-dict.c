@@ -25,14 +25,12 @@ static
 void
 __free_entry(mycms_list_dict_entry entry) {
 	if (entry != NULL) {
-		if (entry->entry.k != NULL) {
-			OPENSSL_free((void *)entry->entry.k);
-			entry->entry.k = NULL;
-		}
-		if (entry->entry.v != NULL) {
-			OPENSSL_free((void *)entry->entry.v);
-			entry->entry.v = NULL;
-		}
+		OPENSSL_free((void *)entry->entry.k);
+		entry->entry.k = NULL;
+
+		OPENSSL_free((void *)entry->entry.v);
+		entry->entry.v = NULL;
+
 		OPENSSL_free(entry);
 		entry = NULL;
 	}
