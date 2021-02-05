@@ -40,10 +40,10 @@ static const struct certificate_driver_s {
 	certificate_apply p;
 } __CERTIFICATE_DRIVERS[] = {
 #ifdef ENABLE_CERTIFICATE_DRIVER_FILE
-	{"file:", mycms_certificate_driver_file_apply},
+	{"file", mycms_certificate_driver_file_apply},
 #endif
 #ifdef ENABLE_CERTIFICATE_DRIVER_PKCS11
-	{"pkcs11:", mycms_certificate_driver_pkcs11_apply},
+	{"pkcs11", mycms_certificate_driver_pkcs11_apply},
 #endif
 	{NULL, NULL}
 };
@@ -65,6 +65,7 @@ __get_certificate_driver(
 	if ((*what = strchr(p, ':')) == NULL) {
 		goto cleanup;
 	}
+	(*what) = '\0';
 	(*what)++;
 
 	for (sd = __CERTIFICATE_DRIVERS; sd->name != NULL; sd++) {
@@ -291,10 +292,10 @@ static int __cmd_encrypt(int argc, char *argv[]) {
 
 	static struct option long_options[] = {
 		{"help\0this usage", no_argument, NULL, OPT_HELP},
-		{"cms-out\0output cms", required_argument, NULL, OPT_CMS_OUT},
-		{"data-pt\0input plain text data", required_argument, NULL, OPT_DATA_PT},
-		{"data-ct\0output plain text data", required_argument, NULL, OPT_DATA_CT},
-		{"to\0target certificate, may be specified several times", required_argument, NULL, OPT_TO},
+		{"cms-out\0FILE|output cms", required_argument, NULL, OPT_CMS_OUT},
+		{"data-pt\0FILE|input plain text data", required_argument, NULL, OPT_DATA_PT},
+		{"data-ct\0FILE|output plain text data", required_argument, NULL, OPT_DATA_CT},
+		{"to\0FILE|target DER encoded certificate, may be specified several times", required_argument, NULL, OPT_TO},
 		{NULL, 0, NULL, 0}
 	};
 
@@ -434,11 +435,11 @@ static int __cmd_encrypt_add(int argc, char *argv[]) {
 
 	static struct option long_options[] = {
 		{"help\0this usage", no_argument, NULL, OPT_HELP},
-		{"cms-in\0input cms", required_argument, NULL, OPT_CMS_IN},
-		{"cms-out\0output cms", required_argument, NULL, OPT_CMS_OUT},
-		{"recip-cert\0recipient certificate expression to use", required_argument, NULL, OPT_RECIP_CERT},
-		{"recip-cert-pass\0recipient certificate passphrase expression to use", required_argument, NULL, OPT_RECIP_CERT_PASS},
-		{"to\0target certificate, may be specified several times", required_argument, NULL, OPT_TO},
+		{"cms-in\0FILE|input cms", required_argument, NULL, OPT_CMS_IN},
+		{"cms-out\0FILE|output cms", required_argument, NULL, OPT_CMS_OUT},
+		{"recip-cert\0CERTIFICATE_EXPRESSION|recipient certificate to use", required_argument, NULL, OPT_RECIP_CERT},
+		{"recip-cert-pass\0PASSPHRASE_EXPRESSION|recipient certificate passphrase to use", required_argument, NULL, OPT_RECIP_CERT_PASS},
+		{"to\0FILE|target DER encoded certificate, may be specified several times", required_argument, NULL, OPT_TO},
 		{NULL, 0, NULL, 0}
 	};
 
@@ -631,11 +632,11 @@ static int __cmd_decrypt(int argc, char *argv[]) {
 
 	static struct option long_options[] = {
 		{"help\0this usage", no_argument, NULL, OPT_HELP},
-		{"cms-in\0input cms", required_argument, NULL, OPT_CMS_IN},
-		{"recip-cert\0recipient certificate expression to use", required_argument, NULL, OPT_RECIP_CERT},
-		{"recip-cert-pass\0recipient certificate passphrase expression to use", required_argument, NULL, OPT_RECIP_CERT_PASS},
-		{"data-ct\0input ciphered text data", required_argument, NULL, OPT_DATA_CT},
-		{"data-pt\0output plain text data", required_argument, NULL, OPT_DATA_PT},
+		{"cms-in\0FILE|input cms", required_argument, NULL, OPT_CMS_IN},
+		{"recip-cert\0CERTIFICATE_EXPRESSION|recipient certificate to use", required_argument, NULL, OPT_RECIP_CERT},
+		{"recip-cert-pass\0PASSPHRASE_EXPRESSION|recipient certificate passphrase to use", required_argument, NULL, OPT_RECIP_CERT_PASS},
+		{"data-ct\0FILE|input ciphered text data", required_argument, NULL, OPT_DATA_CT},
+		{"data-pt\0FILE|output plain text data", required_argument, NULL, OPT_DATA_PT},
 		{NULL, 0, NULL, 0}
 	};
 

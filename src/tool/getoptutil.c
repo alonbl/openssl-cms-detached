@@ -24,6 +24,20 @@ getoptutil_usage(
 		option->name != NULL;
 		option++
 	) {
+		const char *h = option->name+strlen(option->name)+1;
+		const char *k = NULL;
+		char key[1024];
+		const char *p;
+
+		if ((p = strchr(h, '|')) != NULL) {
+			if (p-h < (off_t)sizeof(key) - 1) {
+				strncpy(key, h, p-h);
+				key[p-h] = '\0';
+				k = key;
+				h = p+1;
+			}
+		}
+
 		fprintf(out, "%2s", "");
 		if (option->val < 0x100) {
 			fprintf(out, "-%c, ", option->val);
@@ -31,12 +45,19 @@ getoptutil_usage(
 		else {
 			fprintf(out, "%4s", "");
 		}
+
+		fprintf(out, " --%s", option->name);
+		if (
+			k != NULL &&
+			(option->has_arg == required_argument || option->has_arg == optional_argument)
+		) {
+			fprintf(out, "=%s", k);
+		}
 		fprintf(
 			out,
-			" --%s\n%12s%s\n",
-			option->name,
+			"\n%12s%s\n",
 			"",
-			option->name+strlen(option->name)+1
+			h
 		);
 	}
 }
