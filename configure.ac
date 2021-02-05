@@ -1,7 +1,7 @@
 AC_PREREQ(2.60)
 
-define([PACKAGE_VERSION_MAJOR], [1])
-define([PACKAGE_VERSION_MINOR], [28])
+define([PACKAGE_VERSION_MAJOR], [0])
+define([PACKAGE_VERSION_MINOR], [0])
 define([PACKAGE_VERSION_FIX], [0])
 define([PACKAGE_SUFFIX], [_master])
 
@@ -114,9 +114,6 @@ else
 		[AC_MSG_ERROR([Cannot locate openssl])]
 	)
 fi
-
-test "${enable_tool}" = "yes" -a "${enable_certificate_driver_file}" != "yes" && \
-	AC_MSG_ERROR([Tool requires file certificate driver])
 
 if test "${enable_pedantic}" = "yes"; then
 	enable_strict="yes"

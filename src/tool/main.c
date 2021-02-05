@@ -32,6 +32,8 @@ static const char *__FEATURES[] = {
 	NULL
 };
 
+#if defined(ENABLE_CMS_ENCRYPT) || defined(ENABLE_CMS_DECRYPT)
+
 typedef int (*certificate_driver_apply)(const mycms_certificate c);
 typedef const char *(*certificate_driver_usage)(void);
 static const struct certificate_driver_s {
@@ -47,6 +49,38 @@ static const struct certificate_driver_s {
 #endif
 	{NULL, NULL, NULL}
 };
+
+static
+certificate_driver_apply
+__get_certificate_driver(
+	const char ** what
+) {
+	const struct certificate_driver_s *sd = __CERTIFICATE_DRIVERS;
+	const char *p;
+	certificate_driver_apply ret = NULL;
+
+	if (what == NULL || *what == NULL) {
+		goto cleanup;
+	}
+
+	p = *what;
+	if ((*what = strchr(p, ':')) == NULL) {
+		goto cleanup;
+	}
+	(*what) = '\0';
+	(*what)++;
+
+	for (sd = __CERTIFICATE_DRIVERS; sd->name != NULL; sd++) {
+		if (!strncmp(p, sd->name, strlen(sd->name))) {
+			ret = sd->p;
+			break;
+		}
+	}
+
+cleanup:
+
+	return ret;
+}
 
 static
 void
@@ -91,38 +125,6 @@ __extra_usage() {
 			p1 = p2;
 		}
 	}
-}
-
-static
-certificate_driver_apply
-__get_certificate_driver(
-	const char ** what
-) {
-	const struct certificate_driver_s *sd = __CERTIFICATE_DRIVERS;
-	const char *p;
-	certificate_driver_apply ret = NULL;
-
-	if (what == NULL || *what == NULL) {
-		goto cleanup;
-	}
-
-	p = *what;
-	if ((*what = strchr(p, ':')) == NULL) {
-		goto cleanup;
-	}
-	(*what) = '\0';
-	(*what)++;
-
-	for (sd = __CERTIFICATE_DRIVERS; sd->name != NULL; sd++) {
-		if (!strncmp(p, sd->name, strlen(sd->name))) {
-			ret = sd->p;
-			break;
-		}
-	}
-
-cleanup:
-
-	return ret;
 }
 
 static
@@ -194,6 +196,8 @@ __passphrase_callback(
 		return util_getpass(exp, *p, size);
 	}
 }
+
+#endif
 
 #if defined(ENABLE_CMS_ENCRYPT)
 
@@ -763,7 +767,7 @@ int main(int argc, char *argv[]) {
 		switch (option) {
 			case OPT_HELP:
 				getoptutil_usage(stdout, argv[0], "", long_options);
-				printf("Available commands:\n");
+				printf("\nAvailable commands:\n");
 				for (cmd = commands; cmd->c != NULL; cmd++) {
 					printf("%8s%-16s - %s\n", "", cmd->c, cmd->m);
 				}
@@ -771,7 +775,7 @@ int main(int argc, char *argv[]) {
 				goto cleanup;
 			case OPT_VERSION:
 				printf("%s-%s\n", PACKAGE_NAME, PACKAGE_VERSION);
-				printf("Features: ");
+				printf("Features:");
 				{
 					const char **p;
 					for (p = __FEATURES; *p != NULL; p++) {
