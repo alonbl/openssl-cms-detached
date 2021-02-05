@@ -311,15 +311,17 @@ int
 mycms_certificate_destroy(
 	const mycms_certificate certificate
 ) {
-	EVP_PKEY_free(certificate->evp);
-	certificate->evp = NULL;
+	if (certificate != NULL) {
+		EVP_PKEY_free(certificate->evp);
+		certificate->evp = NULL;
 
-	X509_free(certificate->x509);
-	certificate->x509 = NULL;
+		X509_free(certificate->x509);
+		certificate->x509 = NULL;
 
-	certificate->driver_free(certificate);
+		certificate->driver_free(certificate);
 
-	OPENSSL_free(certificate);
+		OPENSSL_free(certificate);
+	}
 
 	return 1;
 }

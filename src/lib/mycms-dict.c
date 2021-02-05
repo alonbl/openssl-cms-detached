@@ -60,12 +60,14 @@ int
 mycms_dict_destroy(
 	const mycms_dict dict
 ) {
-	while(dict->head != NULL) {
-		mycms_list_dict_entry t = dict->head;
-		dict->head = dict->head->next;
-		__free_entry(t);
+	if (dict != NULL) {
+		while(dict->head != NULL) {
+			mycms_list_dict_entry t = dict->head;
+			dict->head = dict->head->next;
+			__free_entry(t);
+		}
+		OPENSSL_free(dict);
 	}
-	OPENSSL_free(dict);
 	return 1;
 }
 
