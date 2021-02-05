@@ -2,8 +2,6 @@
 #include <config.h>
 #endif
 
-#include <stdlib.h>
-
 #include <openssl/evp.h>
 #include <openssl/x509.h>
 

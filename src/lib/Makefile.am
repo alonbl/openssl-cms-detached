@@ -10,12 +10,13 @@ CLEANFILES = \
 	$(NULL)
 
 MYCMS_EXPORTS = \
-	mycms-certificate-driver-pkcs11.exports \
 	mycms-certificate-driver-file.exports \
+	mycms-certificate-driver-pkcs11.exports \
 	mycms-certificate.exports \
-	mycms.exports \
 	mycms-decrypt.exports \
+	mycms-dict.exports \
 	mycms-encrypt.exports \
+	mycms.exports \
 	$(NULL)
 
 dist_noinst_DATA= \
@@ -41,6 +42,7 @@ libmycms_la_SOURCES= \
 	mycms-certificate-private.h \
 	mycms-certificate.c \
 	mycms-decrypt.c \
+	mycms-dict.c \
 	mycms-encrypt.c \
 	mycms.c \
 	pkcs11.h \
@@ -62,6 +64,7 @@ mycms-all.exports: \
 		$(NULL)
 	cat "$(srcdir)/mycms.exports" > mycms-all.exports.tmp
 	cat "$(srcdir)/mycms-certificate.exports" >> mycms-all.exports.tmp
+	cat "$(srcdir)/mycms-dict.exports" >> mycms-all.exports.tmp
 if ENABLE_CMS_DECRYPT
 	cat "$(srcdir)/mycms-decrypt.exports" >> mycms-all.exports.tmp
 endif

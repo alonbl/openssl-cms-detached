@@ -715,7 +715,7 @@ cleanup:
 
 #endif
 
-int main(int argc, char *argv[]) {
+int main1(int argc, char *argv[]) {
 	enum {
 		OPT_HELP = 0x1000,
 		OPT_SHOW_COMMANDS,

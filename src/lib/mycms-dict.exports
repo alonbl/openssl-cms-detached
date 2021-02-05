@@ -1,0 +1,7 @@
+mycms_dict_construct
+mycms_dict_destroy
+mycms_dict_entry_del
+mycms_dict_entry_get
+mycms_dict_entry_put
+mycms_dict_get_mycms
+mycms_dict_new
