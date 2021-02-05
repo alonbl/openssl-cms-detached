@@ -16,7 +16,7 @@
 
 typedef int (*certificate_apply)(const mycms_certificate c);
 
-const char *FEATURES[] = {
+static const char *FEATURES[] = {
 	"sane",
 #if defined(ENABLE_CERTIFICATE_DRIVER_FILE)
 	"certificate-driver-file",
@@ -36,7 +36,7 @@ const char *FEATURES[] = {
 static const struct certificate_driver_s {
 	const char *name;
 	certificate_apply p;
-} CERTIFICATE_DRIVERS[] = {
+} __CERTIFICATE_DRIVERS[] = {
 #ifdef ENABLE_CERTIFICATE_DRIVER_FILE
 	{"file:", mycms_certificate_driver_file_apply},
 #endif
@@ -46,8 +46,12 @@ static const struct certificate_driver_s {
 	{NULL, NULL}
 };
 
-static certificate_apply get_certificate_driver(const char ** what) {
-	const struct certificate_driver_s *sd = CERTIFICATE_DRIVERS;
+static
+certificate_apply
+__get_certificate_driver(
+	const char ** what
+) {
+	const struct certificate_driver_s *sd = __CERTIFICATE_DRIVERS;
 	const char *p;
 	certificate_apply ret = NULL;
 
@@ -61,7 +65,7 @@ static certificate_apply get_certificate_driver(const char ** what) {
 	}
 	(*what)++;
 
-	for (sd = CERTIFICATE_DRIVERS; sd->name != NULL; sd++) {
+	for (sd = __CERTIFICATE_DRIVERS; sd->name != NULL; sd++) {
 		if (!strncmp(p, sd->name, strlen(sd->name))) {
 			ret = sd->p;
 			break;
@@ -75,7 +79,12 @@ cleanup:
 
 #if defined(ENABLE_CMS_DECRYPT) || defined(ENABLE_CMS_DECRYPT)
 
-static int load_cert(const char * file, mycms_blob *blob) {
+static
+int
+__load_cert(
+	const char * const file,
+	mycms_blob *blob
+) {
 
 	FILE *fp = NULL;
 	unsigned char * data = NULL;
@@ -117,17 +126,17 @@ cleanup:
 		fp = NULL;
 	}
 
-	if (data != NULL) {
-		OPENSSL_free(data);
-		data = NULL;
-	}
+	OPENSSL_free(data);
+	data = NULL;
 
 	return ret;
 }
 
 #endif
 
-static void chop(const char *s) {
+static
+void
+chop(const char *s) {
 	if (s != NULL) {
 		char *p;
 		if ((p = strchr(s, '\n')) != NULL) {
@@ -139,8 +148,13 @@ static void chop(const char *s) {
 	}
 }
 
-static int mygetpass(const char * const exp, char * const pass, const size_t size) {
-
+static
+int
+mygetpass(
+	const char * const exp,
+	char * const pass,
+	const size_t size
+) {
 	static const char PASS_PASS[] = "pass:";
 	static const char PASS_ENV[] = "env:";
 	static const char PASS_FILE[] = "file:";
@@ -202,7 +216,9 @@ cleanup:
 	return ret;
 }
 
-static int passphrase_callback(
+static
+int
+__passphrase_callback(
 	const mycms_certificate certificate,
 	char **p,
 	const size_t size
@@ -219,7 +235,7 @@ static int passphrase_callback(
 
 #if defined(ENABLE_CMS_ENCRYPT)
 
-static int cmd_encrypt(int argc, char *argv[]) {
+static int __cmd_encrypt(int argc, char *argv[]) {
 	enum {
 		OPT_HELP = 0x1000,
 		OPT_CMS_OUT,
@@ -290,7 +306,7 @@ static int cmd_encrypt(int argc, char *argv[]) {
 						goto cleanup;
 					}
 
-					if (!load_cert(optarg, &t->blob)) {
+					if (!__load_cert(optarg, &t->blob)) {
 						OPENSSL_free(t);
 						goto cleanup;
 					}
@@ -364,7 +380,7 @@ cleanup:
 }
 
 
-static int cmd_encrypt_add(int argc, char *argv[]) {
+static int ____cmd_encrypt_add(int argc, char *argv[]) {
 	enum {
 		OPT_HELP = 0x1000,
 		OPT_CMS_IN,
@@ -396,14 +412,6 @@ static int cmd_encrypt_add(int argc, char *argv[]) {
 
 	mycms mycms = NULL;
 	mycms_certificate certificate = NULL;
-
-	if ((mycms = mycms_new()) == NULL) {
-		goto cleanup;
-	}
-
-	if (!mycms_construct(mycms)) {
-		goto cleanup;
-	}
 
 	while ((option = getopt_long(argc, argv, "", long_options, NULL)) != -1) {
 		switch (option) {
@@ -437,7 +445,7 @@ static int cmd_encrypt_add(int argc, char *argv[]) {
 						goto cleanup;
 					}
 
-					if (!load_cert(optarg, &t->blob)) {
+					if (!__load_cert(optarg, &t->blob)) {
 						OPENSSL_free(t);
 						goto cleanup;
 					}
@@ -473,6 +481,14 @@ static int cmd_encrypt_add(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
+	if ((mycms = mycms_new()) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_construct(mycms)) {
+		goto cleanup;
+	}
+
 	if ((certificate = mycms_certificate_new(mycms)) == NULL) {
 		goto cleanup;
 	}
@@ -485,13 +501,13 @@ static int cmd_encrypt_add(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
-	if (!mycms_certificate_set_passphrase_callback(certificate, passphrase_callback)) {
+	if (!mycms_certificate_set_passphrase_callback(certificate, __passphrase_callback)) {
 		goto cleanup;
 	}
 
 	{
 		certificate_apply x;
-		if ((x = get_certificate_driver(&certificate_exp)) == NULL) {
+		if ((x = __get_certificate_driver(&certificate_exp)) == NULL) {
 			goto cleanup;
 		}
 		if (!x(certificate)) {
@@ -548,7 +564,7 @@ cleanup:
 
 #if defined(ENABLE_CMS_DECRYPT)
 
-static int cmd_decrypt(int argc, char *argv[]) {
+static int __cmd_decrypt(int argc, char *argv[]) {
 	enum {
 		OPT_HELP = 0x1000,
 		OPT_CMS_IN,
@@ -580,14 +596,6 @@ static int cmd_decrypt(int argc, char *argv[]) {
 
 	mycms mycms = NULL;
 	mycms_certificate certificate = NULL;
-
-	if ((mycms = mycms_new()) == NULL) {
-		goto cleanup;
-	}
-
-	if (!mycms_construct(mycms)) {
-		goto cleanup;
-	}
 
 	while ((option = getopt_long(argc, argv, "", long_options, NULL)) != -1) {
 		switch (option) {
@@ -646,6 +654,14 @@ static int cmd_decrypt(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
+	if ((mycms = mycms_new()) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_construct(mycms)) {
+		goto cleanup;
+	}
+
 	if ((certificate = mycms_certificate_new(mycms)) == NULL) {
 		goto cleanup;
 	}
@@ -658,13 +674,13 @@ static int cmd_decrypt(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
-	if (!mycms_certificate_set_passphrase_callback(certificate, passphrase_callback)) {
+	if (!mycms_certificate_set_passphrase_callback(certificate, __passphrase_callback)) {
 		goto cleanup;
 	}
 
 	{
 		certificate_apply x;
-		if ((x = get_certificate_driver(&certificate_exp)) == NULL) {
+		if ((x = __get_certificate_driver(&certificate_exp)) == NULL) {
 			goto cleanup;
 		}
 		if (!x(certificate)) {
@@ -768,13 +784,13 @@ int main(int argc, char *argv[]) {
 	if (0) {
 #if defined(ENABLE_CMS_ENCRYPT)
 	} else if (!strcmp("encrypt", command)) {
-		ret = cmd_encrypt(argc, argv);
+		ret = __cmd_encrypt(argc, argv);
 	} else if (!strcmp("encrypt-add", command)) {
-		ret = cmd_encrypt_add(argc, argv);
+		ret = ____cmd_encrypt_add(argc, argv);
 #endif
 #if defined(ENABLE_CMS_DECRYPT)
 	} else if (!strcmp("decrypt", command)) {
-		ret = cmd_decrypt(argc, argv);
+		ret = __cmd_decrypt(argc, argv);
 #endif
 	} else {
 		fprintf(stderr, "Unknown command '%s'\n", command);
