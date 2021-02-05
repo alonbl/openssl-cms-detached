@@ -14,6 +14,8 @@
 #include <mycms-certificate-driver-file.h>
 #include <mycms-certificate-driver-pkcs11.h>
 
+#include "getoptutil.h"
+
 typedef int (*certificate_apply)(const mycms_certificate c);
 
 static const char *FEATURES[] = {
@@ -288,14 +290,15 @@ static int __cmd_encrypt(int argc, char *argv[]) {
 	};
 
 	static struct option long_options[] = {
-		{"help", no_argument, NULL, OPT_HELP},
-		{"cms-out", required_argument, NULL, OPT_CMS_OUT},
-		{"data-pt", required_argument, NULL, OPT_DATA_PT},
-		{"data-ct", required_argument, NULL, OPT_DATA_CT},
-		{"to", required_argument, NULL, OPT_TO},
+		{"help\0this usage", no_argument, NULL, OPT_HELP},
+		{"cms-out\0output cms", required_argument, NULL, OPT_CMS_OUT},
+		{"data-pt\0input plain text data", required_argument, NULL, OPT_DATA_PT},
+		{"data-ct\0output plain text data", required_argument, NULL, OPT_DATA_CT},
+		{"to\0target certificate, may be specified several times", required_argument, NULL, OPT_TO},
 		{NULL, 0, NULL, 0}
 	};
 
+	char optstring[1024];
 	int option;
 	int ret = 1;
 
@@ -316,10 +319,14 @@ static int __cmd_encrypt(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
-	while ((option = getopt_long(argc, argv, "", long_options, NULL)) != -1) {
+	if (!getoptutil_short_from_long(long_options, "+", optstring, sizeof(optstring))) {
+		goto cleanup;
+	}
+
+	while ((option = getopt_long(argc, argv, optstring, long_options, NULL)) != -1) {
 		switch (option) {
 			case OPT_HELP:
-				printf("help\n");
+				getoptutil_usage(stdout, argv[0], "", long_options);
 				ret = 0;
 				goto cleanup;
 			case OPT_CMS_OUT:
@@ -426,15 +433,16 @@ static int __cmd_encrypt_add(int argc, char *argv[]) {
 	};
 
 	static struct option long_options[] = {
-		{"help", no_argument, NULL, OPT_HELP},
-		{"cms-in", required_argument, NULL, OPT_CMS_IN},
-		{"cms-out", required_argument, NULL, OPT_CMS_OUT},
-		{"recip-cert", required_argument, NULL, OPT_RECIP_CERT},
-		{"recip-cert-pass", required_argument, NULL, OPT_RECIP_CERT_PASS},
-		{"to", required_argument, NULL, OPT_TO},
+		{"help\0this usage", no_argument, NULL, OPT_HELP},
+		{"cms-in\0input cms", required_argument, NULL, OPT_CMS_IN},
+		{"cms-out\0output cms", required_argument, NULL, OPT_CMS_OUT},
+		{"recip-cert\0recipient certificate expression to use", required_argument, NULL, OPT_RECIP_CERT},
+		{"recip-cert-pass\0recipient certificate passphrase expression to use", required_argument, NULL, OPT_RECIP_CERT_PASS},
+		{"to\0target certificate, may be specified several times", required_argument, NULL, OPT_TO},
 		{NULL, 0, NULL, 0}
 	};
 
+	char optstring[1024];
 	int option;
 	int ret = 1;
 
@@ -448,10 +456,14 @@ static int __cmd_encrypt_add(int argc, char *argv[]) {
 	mycms_dict dict = NULL;
 	mycms_certificate certificate = NULL;
 
-	while ((option = getopt_long(argc, argv, "", long_options, NULL)) != -1) {
+	if (!getoptutil_short_from_long(long_options, "+", optstring, sizeof(optstring))) {
+		goto cleanup;
+	}
+
+	while ((option = getopt_long(argc, argv, optstring, long_options, NULL)) != -1) {
 		switch (option) {
 			case OPT_HELP:
-				printf("help\n");
+				getoptutil_usage(stdout, argv[0], "", long_options);
 				ret = 0;
 				goto cleanup;
 			case OPT_CMS_IN:
@@ -618,15 +630,16 @@ static int __cmd_decrypt(int argc, char *argv[]) {
 	};
 
 	static struct option long_options[] = {
-		{"help", no_argument, NULL, OPT_HELP},
-		{"cms-in", required_argument, NULL, OPT_CMS_IN},
-		{"recip-cert", required_argument, NULL, OPT_RECIP_CERT},
-		{"recip-cert-pass", required_argument, NULL, OPT_RECIP_CERT_PASS},
-		{"data-pt", required_argument, NULL, OPT_DATA_PT},
-		{"data-ct", required_argument, NULL, OPT_DATA_CT},
+		{"help\0this usage", no_argument, NULL, OPT_HELP},
+		{"cms-in\0input cms", required_argument, NULL, OPT_CMS_IN},
+		{"recip-cert\0recipient certificate expression to use", required_argument, NULL, OPT_RECIP_CERT},
+		{"recip-cert-pass\0recipient certificate passphrase expression to use", required_argument, NULL, OPT_RECIP_CERT_PASS},
+		{"data-ct\0input ciphered text data", required_argument, NULL, OPT_DATA_CT},
+		{"data-pt\0output plain text data", required_argument, NULL, OPT_DATA_PT},
 		{NULL, 0, NULL, 0}
 	};
 
+	char optstring[1024];
 	int option;
 	int ret = 1;
 
@@ -640,10 +653,14 @@ static int __cmd_decrypt(int argc, char *argv[]) {
 	mycms_dict dict = NULL;
 	mycms_certificate certificate = NULL;
 
-	while ((option = getopt_long(argc, argv, "", long_options, NULL)) != -1) {
+	if (!getoptutil_short_from_long(long_options, "+", optstring, sizeof(optstring))) {
+		goto cleanup;
+	}
+
+	while ((option = getopt_long(argc, argv, optstring, long_options, NULL)) != -1) {
 		switch (option) {
 			case OPT_HELP:
-				printf("help\n");
+				getoptutil_usage(stdout, argv[0], "", long_options);
 				ret = 0;
 				goto cleanup;
 			case OPT_CMS_IN:
@@ -782,17 +799,34 @@ cleanup:
 int main(int argc, char *argv[]) {
 	enum {
 		OPT_HELP = 0x1000,
-		OPT_SHOW_COMMANDS,
+		OPT_VERSION,
 		OPT_MAX
 	};
 
+	static struct commands_s {
+		const char *c;
+		const char *m;
+		int (*f)(int argc, char *argv[]);
+	} commands[] = {
+#if defined(ENABLE_CMS_ENCRYPT)
+		{"encrypt", "encrypt data to recipients", __cmd_encrypt},
+		{"encrypt-add", "add recipients to to existing cms", __cmd_encrypt_add},
+#endif
+#if defined(ENABLE_CMS_DECRYPT)
+		{"decrypt", "decrypt cms", __cmd_decrypt},
+#endif
+		{NULL, NULL, NULL}
+	};
+
 	static struct option long_options[] = {
-		{"help", no_argument, NULL, OPT_HELP},
-		{"show-commands", no_argument, NULL, OPT_SHOW_COMMANDS},
+		{"help\0this usage", no_argument, NULL, OPT_HELP},
+		{"version\0print version", no_argument, NULL, OPT_VERSION},
 		{NULL, 0, NULL, 0}
 	};
 
+	struct commands_s *cmd;
 	const char *command;
+	char optstring[1024];
 	int option;
 	int ret = 1;
 
@@ -801,19 +835,30 @@ int main(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
-	while ((option = getopt_long(argc, argv, "+", long_options, NULL)) != -1) {
+	if (!getoptutil_short_from_long(long_options, "+", optstring, sizeof(optstring))) {
+		goto cleanup;
+	}
+
+	while ((option = getopt_long(argc, argv, optstring, long_options, NULL)) != -1) {
 		switch (option) {
 			case OPT_HELP:
-				printf("help\n");
+				getoptutil_usage(stdout, argv[0], "", long_options);
+				printf("Available commands:\n");
+				for (cmd = commands; cmd->c != NULL; cmd++) {
+					printf("%8s%-16s - %s\n", "", cmd->c, cmd->m);
+				}
 				ret = 0;
 				goto cleanup;
-			case OPT_SHOW_COMMANDS:
+			case OPT_VERSION:
+				printf("%s-%s\n", PACKAGE_NAME, PACKAGE_VERSION);
+				printf("Features: ");
 				{
 					const char **p;
 					for (p = FEATURES; *p != NULL; p++) {
-						printf("%s\n", *p);
+						printf(" %s", *p);
 					}
 				}
+				printf("\n");
 				ret = 0;
 				goto cleanup;
 			default:
@@ -829,20 +874,14 @@ int main(int argc, char *argv[]) {
 
 	command = argv[optind++];
 
-	if (0) {
-#if defined(ENABLE_CMS_ENCRYPT)
-	} else if (!strcmp("encrypt", command)) {
-		ret = __cmd_encrypt(argc, argv);
-	} else if (!strcmp("encrypt-add", command)) {
-		ret = __cmd_encrypt_add(argc, argv);
-#endif
-#if defined(ENABLE_CMS_DECRYPT)
-	} else if (!strcmp("decrypt", command)) {
-		ret = __cmd_decrypt(argc, argv);
-#endif
-	} else {
-		fprintf(stderr, "Unknown command '%s'\n", command);
+	for (cmd = commands; cmd->c != NULL; cmd++) {
+		if (!strcmp(command, cmd->c)) {
+			ret = cmd->f(argc, argv);
+			goto cleanup;
+		}
 	}
+
+	fprintf(stderr, "Unknown command '%s'\n", command);
 
 cleanup:
 

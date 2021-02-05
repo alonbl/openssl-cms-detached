@@ -149,10 +149,11 @@ test_add_recepients() {
 	return 0
 }
 
-"${MYCMS_TOOL}" --show-commands | grep -q "sane" || die "tool is insane"
-"${MYCMS_TOOL}" --show-commands | grep -q "encrypt" || skip "encrypt feature is not available"
-"${MYCMS_TOOL}" --show-commands | grep -q "decrypt" || skip "decrypt feature is not available"
-"${MYCMS_TOOL}" --show-commands | grep -q "certificate-driver-file" || skip "certificate-driver-file feature is not available"
+features="$("${MYCMS_TOOL}" --version | grep "Features")" || die "Cannot execute tool"
+echo "${features}" | grep -q "sane" || die "tool is insane"
+echo "${features}" | grep -q "encrypt" || skip "encrypt feature is not available"
+echo "${features}" | grep -q "decrypt" || skip "decrypt feature is not available"
+echo "${features}" | grep -q "certificate-driver-file" || skip "certificate-driver-file feature is not available"
 
 MYTMP="$(mktemp -d)"
 PT="${MYTMP}/pt"

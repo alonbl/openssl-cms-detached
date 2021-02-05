@@ -14,6 +14,8 @@ AM_CPPFLAGS = \
 	$(NULL)
 
 mycms_tool_SOURCES = \
+	getoptutil.c \
+	getoptutil.h \
 	main.c \
 	$(NULL)
 mycms_tool_LDADD = \

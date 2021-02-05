@@ -136,10 +136,11 @@ test_add_recepients() {
 }
 
 
-"${MYCMS_TOOL}" --show-commands | grep -q "sane" || die "tool is insane"
-"${MYCMS_TOOL}" --show-commands | grep -q "encrypt" || skip "encrypt feature is not available"
-"${MYCMS_TOOL}" --show-commands | grep -q "decrypt" || skip "decrypt feature is not available"
-"${MYCMS_TOOL}" --show-commands | grep -q "certificate-driver-pkcs11" || skip "certificate-driver-pkcs11 feature is not available"
+features="$("${MYCMS_TOOL}" --version | grep "Features")" || die "Cannot execute tool"
+echo "${features}" | grep -q "sane" || die "tool is insane"
+echo "${features}" | grep -q "encrypt" || skip "encrypt feature is not available"
+echo "${features}" | grep -q "decrypt" || skip "decrypt feature is not available"
+echo "${features}" | grep -q "certificate-driver-pkcs11" || skip "certificate-driver-pkcs11 feature is not available"
 
 "${SOFTHSM2_UTIL}" --version > /dev/null || skip "softhsm2-util not found"
 "${PKCS11_TOOL}" --version 2>&1 | grep -q "Usage:" || skip "pkcs11-tool not found"
