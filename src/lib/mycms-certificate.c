@@ -151,9 +151,13 @@ __rsa_op(
 	RSA *rsa,
 	int padding
 ) {
-	mycms_certificate certificate = __get_rsa_certificate(rsa);
+	mycms_certificate certificate;
 	int cpadding;
 	int ret = -1;
+
+ 	if ((certificate = __get_rsa_certificate(rsa)) == NULL) {
+		goto cleanup;
+	}
 
 	if (certificate->driver_rsa_private_op == NULL) {
 		goto cleanup;
@@ -289,13 +293,21 @@ mycms_certificate_new(
 ) {
 	mycms_certificate certificate = NULL;
 
-	if ((certificate = OPENSSL_zalloc(sizeof(*certificate))) != NULL) {
-		certificate->mycms = mycms;
-		certificate->driver_free = __driver_free_default;
-		certificate->driver_load = __driver_load_default;
-		certificate->driver_rsa_private_op = driver_rsa_private_op_default;
-		certificate->passphrase_callback = passphrase_callback_default;
+	if (mycms == NULL) {
+		goto cleanup;
 	}
+
+	if ((certificate = OPENSSL_zalloc(sizeof(*certificate))) == NULL) {
+		goto cleanup;
+	}
+
+	certificate->mycms = mycms;
+	certificate->driver_free = __driver_free_default;
+	certificate->driver_load = __driver_load_default;
+	certificate->driver_rsa_private_op = driver_rsa_private_op_default;
+	certificate->passphrase_callback = passphrase_callback_default;
+
+cleanup:
 
 	return certificate;
 }
@@ -304,7 +316,17 @@ int
 mycms_certificate_construct(
 	const mycms_certificate certificate __attribute__((unused))
 ) {
-	return 1;
+	int ret = 0;
+
+	if (certificate == NULL) {
+		goto cleanup;
+	}
+
+	ret = 1;
+
+cleanup:
+
+	return ret;
 }
 
 int
@@ -330,14 +352,34 @@ mycms
 mycms_certificate_get_mycms(
 	const mycms_certificate certificate
 ) {
-	return certificate->mycms;
+	mycms ret = NULL;
+
+	if (certificate == NULL) {
+		goto cleanup;
+	}
+
+	ret = certificate->mycms;
+
+cleanup:
+
+	return ret;
 }
 
 const void *
 mycms_certificate_get_userdata(
 	const mycms_certificate certificate
 ) {
-	return certificate->userdata;
+	const void *ret = NULL;
+
+	if (certificate == NULL) {
+		goto cleanup;
+	}
+
+	ret = certificate->userdata;
+
+cleanup:
+
+	return ret;
 }
 
 int
@@ -345,15 +387,36 @@ mycms_certificate_set_userdata(
 	const mycms_certificate certificate,
 	const void *userdata
 ) {
+	int ret = 0;
+
+	if (certificate == NULL) {
+		goto cleanup;
+	}
+
 	certificate->userdata = userdata;
-	return 1;
+
+	ret = 1;
+
+cleanup:
+
+	return ret;
 }
 
 const void *
 mycms_certificate_get_driverdata(
 	const mycms_certificate certificate
 ) {
-	return certificate->driverdata;
+	const void *ret = NULL;
+
+	if (certificate == NULL) {
+		goto cleanup;
+	}
+
+	ret = certificate->driverdata;
+
+cleanup:
+
+	return ret;
 }
 
 int
@@ -370,8 +433,23 @@ mycms_certificate_set_driver_load(
 	const mycms_certificate certificate,
 	const mycms_certificate_driver_load driver_load
 ) {
+	int ret = 0;
+
+	if (certificate == NULL) {
+		goto cleanup;
+	}
+
+	if (driver_load == NULL) {
+		goto cleanup;
+	}
+
 	certificate->driver_load = driver_load;
-	return 1;
+
+	ret = 1;
+
+cleanup:
+
+	return ret;
 }
 
 int
@@ -379,8 +457,23 @@ mycms_certificate_set_driver_free(
 	const mycms_certificate certificate,
 	const mycms_certificate_driver_free driver_free
 ) {
+	int ret = 0;
+
+	if (certificate == NULL) {
+		goto cleanup;
+	}
+
+	if (driver_free == NULL) {
+		goto cleanup;
+	}
+
 	certificate->driver_free = driver_free;
-	return 1;
+
+	ret = 1;
+
+cleanup:
+
+	return ret;
 }
 
 int
@@ -388,8 +481,23 @@ mycms_certificate_set_driver_rsa_private_op(
 	const mycms_certificate certificate,
 	const mycms_certificate_driver_rsa_private_op driver_rsa_private_op
 ) {
+	int ret = 0;
+
+	if (certificate == NULL) {
+		goto cleanup;
+	}
+
+	if (driver_rsa_private_op == NULL) {
+		goto cleanup;
+	}
+
 	certificate->driver_rsa_private_op = driver_rsa_private_op;
-	return 1;
+
+	ret = 1;
+
+cleanup:
+
+	return ret;
 }
 
 int
@@ -397,16 +505,45 @@ mycms_certificate_set_passphrase_callback(
 	const mycms_certificate certificate,
 	const mycms_certificate_passphrase_callback passphrase_callback
 ) {
+	int ret = 0;
+
+	if (certificate == NULL) {
+		goto cleanup;
+	}
+
+	if (passphrase_callback == NULL) {
+		goto cleanup;
+	}
+
 	certificate->passphrase_callback = passphrase_callback;
-	return 1;
+
+	ret = 1;
+
+cleanup:
+
+	return ret;
 }
 
 int
 mycms_certificate_load(
 	const mycms_certificate certificate,
-	const mycms_dict dict
+	const mycms_dict parameters
 ) {
-	return certificate->driver_load(certificate, dict);
+	int ret = 0;
+
+	if (certificate == NULL) {
+		goto cleanup;
+	}
+
+	if (parameters == NULL) {
+		goto cleanup;
+	}
+
+	ret = certificate->driver_load(certificate, parameters);
+
+cleanup:
+
+	return ret;
 }
 
 int
@@ -418,6 +555,14 @@ mycms_certificate_apply_certificate(
 	X509 *x509 = NULL;
 	EVP_PKEY *evp = NULL;
 	int ret = 0;
+
+	if (certificate == NULL) {
+		goto cleanup;
+	}
+
+	if (blob == NULL) {
+		goto cleanup;
+	}
 
 	p = blob->data;
 	if ((x509 = d2i_X509(NULL, &p, blob->size)) == NULL) {
@@ -463,19 +608,53 @@ mycms_certificate_aquire_passphrase(
 	char **p,
 	const size_t size
 ) {
-	return certificate->passphrase_callback(certificate, p, size);
+	int ret = 0;
+
+	if (certificate == NULL) {
+		goto cleanup;
+	}
+
+	if (p == NULL) {
+		goto cleanup;
+	}
+
+	ret = certificate->passphrase_callback(certificate, p, size);
+
+cleanup:
+
+	return ret;
 }
 
 X509 *
 _mycms_certificate_get_X509(
 	const mycms_certificate certificate
 ) {
-	return certificate->x509;
+	X509 *ret = NULL;
+
+	if (certificate == NULL) {
+		goto cleanup;
+	}
+
+	ret = certificate->x509;
+
+cleanup:
+
+	return ret;
 }
 
 EVP_PKEY *
 _mycms_certificate_get_EVP_PKEY(
 	const mycms_certificate certificate
 ) {
-	return certificate->evp;
+	EVP_PKEY *ret = NULL;
+
+	if (certificate == NULL) {
+		goto cleanup;
+	}
+
+	ret = certificate->evp;
+
+cleanup:
+
+	return ret;
 }

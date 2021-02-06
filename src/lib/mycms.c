@@ -46,9 +46,19 @@ mycms_new(void) {
 
 int
 mycms_construct(
-	const mycms mycms __attribute__((unused))
+	const mycms mycms
 ) {
-	return 1;
+	int ret = 0;
+
+	if (mycms == NULL) {
+		goto cleanup;
+	}
+
+	ret = 1;
+
+cleanup:
+
+	return ret;
 }
 
 int

@@ -2,8 +2,6 @@
 #include <config.h>
 #endif
 
-#if defined(ENABLE_CMS_ENCRYPT)
-
 #include <openssl/cms.h>
 #include <openssl/x509.h>
 
@@ -69,7 +67,7 @@ cleanup:
 }
 
 int mycms_encrypt(
-	mycms mycms __attribute__((unused)),
+	mycms mycms,
 	const EVP_CIPHER *cipher,
 	const mycms_list_blob to,
 	BIO *cms_out,
@@ -81,6 +79,30 @@ int mycms_encrypt(
 	int flags = CMS_BINARY | CMS_DETACHED | CMS_PARTIAL | CMS_USE_KEYID;
 
 	int ret = 1;
+
+	if (mycms == NULL) {
+		goto cleanup;
+	}
+
+	if (cipher == NULL) {
+		goto cleanup;
+	}
+
+	if (to == NULL) {
+		goto cleanup;
+	}
+
+	if (cms_out == NULL) {
+		goto cleanup;
+	}
+
+	if (data_pt == NULL) {
+		goto cleanup;
+	}
+
+	if (data_ct == NULL) {
+		goto cleanup;
+	}
 
 	if ((cms = CMS_encrypt(NULL, NULL, cipher, flags)) == NULL) {
 		goto cleanup;
@@ -112,7 +134,7 @@ cleanup:
 }
 
 int mycms_encrypt_add(
-	mycms mycms __attribute__((unused)),
+	mycms mycms,
 	const mycms_certificate certificate,
 	const mycms_list_blob to,
 	BIO *cms_in,
@@ -124,6 +146,26 @@ int mycms_encrypt_add(
 
 	int ret = 1;
 	int i;
+
+	if (mycms == NULL) {
+		goto cleanup;
+	}
+
+	if (certificate == NULL) {
+		goto cleanup;
+	}
+
+	if (to == NULL) {
+		goto cleanup;
+	}
+
+	if (cms_in == NULL) {
+		goto cleanup;
+	}
+
+	if (cms_out == NULL) {
+		goto cleanup;
+	}
 
 	if ((cms = d2i_CMS_bio(cms_in, NULL)) == NULL) {
 		goto cleanup;
@@ -165,5 +207,3 @@ cleanup:
 
 	return ret;
 }
-
-#endif

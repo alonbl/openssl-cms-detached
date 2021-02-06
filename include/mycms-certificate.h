@@ -118,7 +118,7 @@ mycms_certificate_apply_certificate(
 int
 mycms_certificate_load(
 	const mycms_certificate certificate,
-	const mycms_dict dict
+	const mycms_dict parameters
 );
 
 int

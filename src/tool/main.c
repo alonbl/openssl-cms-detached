@@ -248,7 +248,7 @@ static int __cmd_encrypt(int argc, char *argv[]) {
 	while ((option = getopt_long(argc, argv, optstring, long_options, NULL)) != -1) {
 		switch (option) {
 			case OPT_HELP:
-				getoptutil_usage(stdout, argv[0], "", long_options);
+				getoptutil_usage(stdout, argv[0], "encrypt [options]", long_options);
 				ret = 0;
 				goto cleanup;
 			case OPT_CMS_OUT:
@@ -385,7 +385,7 @@ static int __cmd_encrypt_add(int argc, char *argv[]) {
 	while ((option = getopt_long(argc, argv, optstring, long_options, NULL)) != -1) {
 		switch (option) {
 			case OPT_HELP:
-				getoptutil_usage(stdout, argv[0], "", long_options);
+				getoptutil_usage(stdout, argv[0], "encrypt-add [options]", long_options);
 				__extra_usage();
 				ret = 0;
 				goto cleanup;
@@ -583,7 +583,7 @@ static int __cmd_decrypt(int argc, char *argv[]) {
 	while ((option = getopt_long(argc, argv, optstring, long_options, NULL)) != -1) {
 		switch (option) {
 			case OPT_HELP:
-				getoptutil_usage(stdout, argv[0], "", long_options);
+				getoptutil_usage(stdout, argv[0], "decrypt [options]", long_options);
 				__extra_usage();
 				ret = 0;
 				goto cleanup;
@@ -766,7 +766,7 @@ int main(int argc, char *argv[]) {
 	while ((option = getopt_long(argc, argv, optstring, long_options, NULL)) != -1) {
 		switch (option) {
 			case OPT_HELP:
-				getoptutil_usage(stdout, argv[0], "", long_options);
+				getoptutil_usage(stdout, argv[0], "command [options]", long_options);
 				printf("\nAvailable commands:\n");
 				for (cmd = commands; cmd->c != NULL; cmd++) {
 					printf("%8s%-16s - %s\n", "", cmd->c, cmd->m);

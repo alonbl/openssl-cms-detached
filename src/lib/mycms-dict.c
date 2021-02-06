@@ -42,18 +42,36 @@ mycms_dict_new(
 ) {
 	mycms_dict dict = NULL;
 
-	if ((dict = OPENSSL_zalloc(sizeof(*dict))) != NULL) {
-		dict->mycms = mycms;
+	if (mycms == NULL) {
+		goto cleanup;
 	}
+
+	if ((dict = OPENSSL_zalloc(sizeof(*dict))) == NULL) {
+		goto cleanup;
+	}
+
+	dict->mycms = mycms;
+
+cleanup:
 
 	return dict;
 }
 
 int
 mycms_dict_construct(
-	const mycms_dict dict __attribute__((unused))
+	const mycms_dict dict
 ) {
-	return 1;
+	int ret = 0;
+
+	if (dict == NULL) {
+		goto cleanup;
+	}
+
+	ret = 1;
+
+cleanup:
+
+	return ret;
 }
 
 int
@@ -71,20 +89,40 @@ mycms
 mycms_dict_get_mycms(
 	const mycms_dict dict
 ) {
-	return dict->mycms;
+	mycms ret = NULL;
+
+	if (dict == NULL) {
+		goto cleanup;
+	}
+
+	ret = dict->mycms;
+
+cleanup:
+
+	return ret;
 }
 
 int
 mycms_dict_entry_clear(
 	const mycms_dict dict
 ) {
+	int ret = 0;
+
+	if (dict == NULL) {
+		goto cleanup;
+	}
+
 	while(dict->head != NULL) {
 		mycms_list_dict_entry t = dict->head;
 		dict->head = dict->head->next;
 		__free_entry(t);
 	}
 
-	return 1;
+	ret = 1;
+
+cleanup:
+
+	return ret;
 }
 
 int
@@ -93,34 +131,43 @@ mycms_dict_entry_put(
 	const char * const k,
 	const char * const v
 ) {
-	mycms_list_dict_entry t;
+	mycms_list_dict_entry t = NULL;
+	const char *vdup = NULL;
 	int ret = 0;
+
+	if (dict == NULL) {
+		goto cleanup;
+	}
+
+	if (k == NULL) {
+		goto cleanup;
+	}
+
+	if (v != NULL) {
+		if ((vdup = OPENSSL_strdup(v)) == NULL) {
+			goto cleanup;
+		}
+	}
 
 	for (t = dict->head; t != NULL; t = t->next) {
 		if (!strcmp(k, t->entry.k)) {
 			break;
 		}
-	}	
+	}
 	if (t != NULL) {
-		const char *vdup = NULL;
-		if ((vdup = OPENSSL_strdup(v)) == NULL) {
-			goto cleanup;
-		}
 		OPENSSL_free((void *)t->entry.v);
 		t->entry.v = vdup;
 		vdup = NULL;
 		t = NULL;
-	}
-	if (t == NULL) {
+	} else {
 		if ((t = OPENSSL_zalloc(sizeof(*t))) == NULL) {
 			goto cleanup;
 		}
 		if ((t->entry.k = OPENSSL_strdup(k)) == NULL) {
 			goto cleanup;
 		}
-		if ((t->entry.v = OPENSSL_strdup(v)) == NULL) {
-			goto cleanup;
-		}
+		t->entry.v = vdup;
+		vdup = NULL;
 		t->next = dict->head;
 		dict->head = t;
 		t = NULL;
@@ -141,6 +188,15 @@ mycms_dict_entry_get(
 	int * const found
 ) {
 	mycms_list_dict_entry t;
+	const char *ret = NULL;
+
+	if (dict == NULL) {
+		goto cleanup;
+	}
+
+	if (k == NULL) {
+		goto cleanup;
+	}
 
 	if (found != NULL) {
 		*found = 0;
@@ -152,14 +208,16 @@ mycms_dict_entry_get(
 		}
 	}
 
-	if (t == NULL) {
-		return NULL;
-	} else {
+	if (t != NULL) {
 		if (found != NULL) {
 			*found = 1;
 		}
-		return t->entry.v;
+		ret = t->entry.v;
 	}
+
+cleanup:
+
+	return ret;
 }
 
 int
@@ -169,6 +227,15 @@ mycms_dict_entry_del(
 ) {
 	mycms_list_dict_entry p;
 	mycms_list_dict_entry t;
+	int ret = 0;
+
+	if (dict == NULL) {
+		goto cleanup;
+	}
+
+	if (k == NULL) {
+		goto cleanup;
+	}
 
 	for (p = NULL, t = dict->head; t != NULL; p = t, t = t->next) {
 		if (!strcmp(k, t->entry.k)) {
@@ -185,5 +252,9 @@ mycms_dict_entry_del(
 		__free_entry(t);
 	}
 
-	return 1;
+	ret = 1;
+
+cleanup:
+
+	return ret;
 }

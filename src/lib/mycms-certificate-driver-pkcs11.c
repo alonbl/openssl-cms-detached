@@ -2,8 +2,6 @@
 #include <config.h>
 #endif
 
-#ifdef ENABLE_CERTIFICATE_DRIVER_PKCS11
-
 #include <dlfcn.h>
 #include <stdlib.h>
 #include <string.h>
@@ -283,7 +281,7 @@ __driver_rsa_private_op(
 	const size_t to_size,
 	const int padding
 ) {
-	__mycms_certificate_driver_pkcs11 certificate_pkcs11 = (__mycms_certificate_driver_pkcs11)mycms_certificate_get_driverdata(certificate);
+	__mycms_certificate_driver_pkcs11 certificate_pkcs11 = NULL;
 
 	CK_MECHANISM mech = {
 		0, NULL, 0
@@ -291,6 +289,26 @@ __driver_rsa_private_op(
 	CK_ULONG size;
 	CK_RV rv = CKR_FUNCTION_FAILED;
 	int ret = -1;
+
+	if ((certificate_pkcs11 = (__mycms_certificate_driver_pkcs11)mycms_certificate_get_driverdata(certificate)) == NULL) {
+		goto cleanup;
+	}
+
+	if (from == NULL) {
+		goto cleanup;
+	}
+
+	if (to == NULL) {
+		goto cleanup;
+	}
+
+	if (from_size == 0) {
+		goto cleanup;
+	}
+
+	if (to_size < from_size) {
+		goto cleanup;
+	}
 
 	if ((mech.mechanism = __convert_padding(padding)) == CKR_MECHANISM_INVALID) {
 		goto cleanup;
@@ -351,22 +369,25 @@ int
 __driver_free(
 	const mycms_certificate certificate
 ) {
-	__mycms_certificate_driver_pkcs11 certificate_pkcs11 = (__mycms_certificate_driver_pkcs11)mycms_certificate_get_driverdata(certificate);
+	__mycms_certificate_driver_pkcs11 certificate_pkcs11 = NULL;
+	int ret = 0;
 
-	int ret = 1;
-
-	if (certificate_pkcs11 != NULL) {
-		if (certificate_pkcs11->key_handle != __INVALID_OBJECT_HANDLE) {
-			certificate_pkcs11->key_handle = __INVALID_OBJECT_HANDLE;
-		}
-		if (certificate_pkcs11->session_handle != __INVALID_SESSION_HANDLE) {
-			certificate_pkcs11->f->C_Logout(certificate_pkcs11->session_handle);
-			certificate_pkcs11->f->C_CloseSession(certificate_pkcs11->session_handle);
-			certificate_pkcs11->session_handle = __INVALID_SESSION_HANDLE;
-		}
-		__unload_provider(certificate_pkcs11);
-		OPENSSL_free(certificate_pkcs11);
+	if ((certificate_pkcs11 = (__mycms_certificate_driver_pkcs11)mycms_certificate_get_driverdata(certificate)) == NULL) {
+		goto cleanup;
 	}
+
+	certificate_pkcs11->key_handle = __INVALID_OBJECT_HANDLE;
+	if (certificate_pkcs11->session_handle != __INVALID_SESSION_HANDLE) {
+		certificate_pkcs11->f->C_Logout(certificate_pkcs11->session_handle);
+		certificate_pkcs11->f->C_CloseSession(certificate_pkcs11->session_handle);
+		certificate_pkcs11->session_handle = __INVALID_SESSION_HANDLE;
+	}
+	__unload_provider(certificate_pkcs11);
+	OPENSSL_free(certificate_pkcs11);
+
+	ret = 1;
+
+cleanup:
 
 	return ret;
 }
@@ -400,6 +421,14 @@ __driver_load(
 		{CKA_ID, NULL, 0},
 		{CKA_VALUE, NULL, 0}
 	};
+
+	if (certificate == NULL) {
+		goto cleanup;
+	}
+
+	if (parameters == NULL) {
+		goto cleanup;
+	}
 
 	if ((module = mycms_dict_entry_get(parameters, "module", NULL)) == NULL) {
 		goto cleanup;
@@ -594,10 +623,23 @@ mycms_certificate_driver_pkcs11_usage(void) {
 int mycms_certificate_driver_pkcs11_apply(
 	const mycms_certificate certificate
 ) {
-	mycms_certificate_set_driver_free(certificate, __driver_free);
-	mycms_certificate_set_driver_load(certificate, __driver_load);
-	mycms_certificate_set_driver_rsa_private_op(certificate, __driver_rsa_private_op);
-	return 1;
-}
+	int ret = 0;
 
-#endif
+	if (!mycms_certificate_set_driver_free(certificate, __driver_free)) {
+		goto cleanup;
+	}
+
+	if (!mycms_certificate_set_driver_load(certificate, __driver_load)) {
+		goto cleanup;
+	}
+
+	if (!mycms_certificate_set_driver_rsa_private_op(certificate, __driver_rsa_private_op)) {
+		goto cleanup;
+	}
+
+	ret = 1;
+
+cleanup:
+
+	return ret;
+}

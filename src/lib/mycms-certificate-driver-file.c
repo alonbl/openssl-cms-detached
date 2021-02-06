@@ -2,8 +2,6 @@
 #include <config.h>
 #endif
 
-#ifdef ENABLE_CERTIFICATE_DRIVER_FILE
-
 #include <stdlib.h>
 #include <string.h>
 
@@ -46,6 +44,10 @@ __driver_load_pkey(const char *file) {
 	EVP_PKEY *k = NULL;
 	BIO *bio = NULL;
 
+	if (file == NULL) {
+		goto cleanup;
+	}
+
 	if ((bio = BIO_new_file(file, "rb")) == NULL) {
 		goto cleanup;
 	}
@@ -71,13 +73,33 @@ __driver_rsa_private_op(
 	const unsigned char * const from,
 	const size_t from_size,
 	unsigned char * const to,
-	const size_t to_size __attribute__((unused)),
+	const size_t to_size,
 	const int padding
 ) {
-	__mycms_certificate_driver_file certificate_file = (__mycms_certificate_driver_file)mycms_certificate_get_driverdata(certificate);
-	int cpadding;
+	__mycms_certificate_driver_file certificate_file = NULL;
 	const RSA_METHOD *rsa_method = NULL;
+	int cpadding;
 	int ret = -1;
+
+	if ((certificate_file = (__mycms_certificate_driver_file)mycms_certificate_get_driverdata(certificate)) == NULL) {
+		goto cleanup;
+	}
+
+	if (from == NULL) {
+		goto cleanup;
+	}
+
+	if (to == NULL) {
+		goto cleanup;
+	}
+
+	if (from_size == 0) {
+		goto cleanup;
+	}
+
+	if (to_size < from_size) {
+		goto cleanup;
+	}
 
 	if ((cpadding = __convert_padding(padding)) == -1) {
 		goto cleanup;
@@ -109,17 +131,23 @@ int
 __driver_free(
 	const mycms_certificate certificate
 ) {
-	__mycms_certificate_driver_file certificate_file = (__mycms_certificate_driver_file)mycms_certificate_get_driverdata(certificate);
+	__mycms_certificate_driver_file certificate_file;
+	int ret = 0;
 
-	int ret = 1;
-
-	if (certificate_file != NULL) {
-		#ifndef OPENSSL_NO_RSA
-			RSA_free(certificate_file->rsa);
-			certificate_file->rsa = NULL;
-		#endif
-		OPENSSL_free(certificate_file);
+	if ((certificate_file = (__mycms_certificate_driver_file)mycms_certificate_get_driverdata(certificate)) == NULL) {
+		goto cleanup;
 	}
+
+#ifndef OPENSSL_NO_RSA
+	RSA_free(certificate_file->rsa);
+	certificate_file->rsa = NULL;
+#endif
+
+	OPENSSL_free(certificate_file);
+
+	ret = 1;
+
+cleanup:
 
 	return ret;
 }
@@ -141,6 +169,14 @@ __driver_load(
 	FILE *fp = NULL;
 	int ret = 0;
 
+	if (certificate == NULL) {
+		goto cleanup;
+	}
+
+	if (parameters == NULL) {
+		goto cleanup;
+	}
+
 	if ((cert_file = mycms_dict_entry_get(parameters, "cert", NULL)) == NULL) {
 		goto cleanup;
 	}
@@ -148,7 +184,6 @@ __driver_load(
 	if ((key_file = mycms_dict_entry_get(parameters, "key", NULL)) == NULL) {
 		goto cleanup;
 	}
-
 
 	if ((fp = fopen(cert_file, "rb")) == NULL) {
 		goto cleanup;
@@ -221,10 +256,8 @@ cleanup:
 
 	if (certificate_file != NULL) {
 #ifndef OPENSSL_NO_RSA
-		if (certificate_file->rsa != NULL) {
-			RSA_free(certificate_file->rsa);
-			certificate_file->rsa = NULL;
-		}
+		RSA_free(certificate_file->rsa);
+		certificate_file->rsa = NULL;
 #endif
 		OPENSSL_free(certificate_file);
 		certificate_file = NULL;
@@ -244,12 +277,28 @@ mycms_certificate_driver_file_usage(void) {
 int mycms_certificate_driver_file_apply(
 	const mycms_certificate certificate
 ) {
-	mycms_certificate_set_driver_free(certificate, __driver_free);
-	mycms_certificate_set_driver_load(certificate, __driver_load);
-#ifndef OPENSSL_NO_RSA
-	mycms_certificate_set_driver_rsa_private_op(certificate, __driver_rsa_private_op);
-#endif
-	return 1;
-}
+	int ret = 0;
 
+	if (certificate == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_certificate_set_driver_free(certificate, __driver_free)) {
+		goto cleanup;
+	}
+
+	if (!mycms_certificate_set_driver_load(certificate, __driver_load)) {
+		goto cleanup;
+	}
+
+#ifndef OPENSSL_NO_RSA
+	if (!mycms_certificate_set_driver_rsa_private_op(certificate, __driver_rsa_private_op)) {
+		goto cleanup;
+	}
 #endif
+	ret = 1;
+
+cleanup:
+
+	return ret;
+}
