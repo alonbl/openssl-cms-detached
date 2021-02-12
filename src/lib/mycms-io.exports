@@ -1,0 +1,8 @@
+mycms_io_new
+mycms_io_construct
+mycms_io_destruct
+mycms_io_get_mycms
+mycms_io_open_file
+mycms_io_map_mem
+mycms_io_open_mem
+mycms_io_get_mem_ptr

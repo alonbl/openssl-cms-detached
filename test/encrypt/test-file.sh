@@ -43,12 +43,12 @@ test_sanity() {
 		--cms-out="${CMS}" \
 		--data-pt="${PT}" \
 		--data-ct="${CT}" \
-		--to="${srcdir}/test1.der" \
+		--to="gen/test1.crt" \
 		|| die "sanity.encrypt"
 	echo "Decrypting by test1"
 	doval "${MYCMS_TOOL}" decrypt \
 		--cms-in="${CMS}" \
-		--recip-cert="file:cert=${srcdir}/test1.der:key=${srcdir}/test1.key" \
+		--recip-cert="file:cert=gen/test1.crt:key=gen/test1.key" \
 		--data-pt="${OUTPT}" \
 		--data-ct="${CT}" \
 		|| die "sanity.decrypt"
@@ -58,7 +58,7 @@ test_sanity() {
 	echo "Decrypting by test2 (should fail)"
 	doval "${MYCMS_TOOL}" decrypt \
 		--cms-in="${CMS}" \
-		--recip-cert="file:cert=${srcdir}/test2.der:key=${srcdir}/test2.key" \
+		--recip-cert="file:cert=gen/test2.crt:key=gen/test2.key" \
 		--data-pt="${OUTPT}" \
 		--data-ct="${CT}" \
 		&& die "sanity.decrypt succeeded with other"
@@ -78,13 +78,13 @@ test_multiple_recepients() {
 		--cms-out="${CMS}" \
 		--data-pt="${PT}" \
 		--data-ct="${CT}" \
-		--to="${srcdir}/test1.der" \
-		--to="${srcdir}/test2.der" \
+		--to="gen/test1.crt" \
+		--to="gen/test2.crt" \
 		|| die "multi-recip.encrypt"
 	echo "Decrypting by test1"
 	doval "${MYCMS_TOOL}" decrypt \
 		--cms-in="${CMS}" \
-		--recip-cert="file:cert=${srcdir}/test1.der:key=${srcdir}/test1.key" \
+		--recip-cert="file:cert=gen/test1.crt:key=gen/test1.key" \
 		--data-pt="${OUTPT1}" \
 		--data-ct="${CT}" \
 		|| die "multi-recip.decrypt"
@@ -92,7 +92,7 @@ test_multiple_recepients() {
 	echo "Decrypting by test2"
 	doval "${MYCMS_TOOL}" decrypt \
 		--cms-in="${CMS}" \
-		--recip-cert="file:cert=${srcdir}/test2.der:key=${srcdir}/test2.key" \
+		--recip-cert="file:cert=gen/test2.crt:key=gen/test2.key" \
 		--data-pt="${OUTPT2}" \
 		--data-ct="${CT}" \
 		|| die "multi-recip.decrypt"
@@ -113,25 +113,25 @@ test_add_recepients() {
 		--cms-out="${CMS1}" \
 		--data-pt="${PT}" \
 		--data-ct="${CT}" \
-		--to="${srcdir}/test1.der" \
-		--to="${srcdir}/test2.der" \
+		--to="gen/test1.crt" \
+		--to="gen/test2.crt" \
 		|| die "add-recip.encrypt"
 
 	echo "Ading to test3 and test4 using test1"
 	doval "${MYCMS_TOOL}" encrypt-add \
 		--cms-in="${CMS1}" \
 		--cms-out="${CMS2}" \
-		--recip-cert="file:cert=${srcdir}/test1.der:key=${srcdir}/test1.key" \
-		--to="${srcdir}/test3.der" \
-		--to="${srcdir}/test4.der" \
-		#|| die "add-recip.encrypt"
+		--recip-cert="file:cert=gen/test1.crt:key=gen/test1.key" \
+		--to="gen/test3.crt" \
+		--to="gen/test4.crt" \
+		|| die "add-recip.encrypt"
 
 	local x
 	for x in test1 test2 test3 test4; do
 		echo "Decrypting by '${x}'"
 		doval "${MYCMS_TOOL}" decrypt \
 			--cms-in="${CMS2}" \
-			--recip-cert="file:cert=${srcdir}/${x}.der:key=${srcdir}/${x}.key" \
+			--recip-cert="file:cert=gen/${x}.crt:key=gen/${x}.key" \
 			--data-pt="${OUTPT}-${x}" \
 			--data-ct="${CT}" \
 			|| die "add-recip.decrypt.${x}"
@@ -141,7 +141,7 @@ test_add_recepients() {
 	echo "Decrypting by test5 (should fail)"
 	doval "${MYCMS_TOOL}" decrypt \
 		--cms-in="${CMS2}" \
-		--recip-cert="file:cert=${srcdir}/test5.der:key=${srcdir}/test5.key" \
+		--recip-cert="file:cert=gen/test5.crt:key=gen/test5.key" \
 		--data-pt="${OUTPT}-test5" \
 		--data-ct="${CT}" \
 		&& die "sanity.decrypt should not succeed"
@@ -149,6 +149,7 @@ test_add_recepients() {
 	return 0
 }
 
+[ -x "${MYCMS_TOOL}" ] || skip "no tool"
 features="$("${MYCMS_TOOL}" --version | grep "Features")" || die "Cannot execute tool"
 echo "${features}" | grep -q "sane" || die "tool is insane"
 echo "${features}" | grep -q "encrypt" || skip "encrypt feature is not available"

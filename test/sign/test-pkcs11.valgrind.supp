@@ -1,0 +1,29 @@
+{
+   C_Initialize
+   Memcheck:Leak
+   match-leak-kinds: definite
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/softhsm/libsofthsm2.so
+   fun:C_Initialize
+}
+{
+   _dl_catch_exception
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_dl_catch_exception
+}
+{
+   dlopen
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:dlopen@@*
+}
+{
+   _dlerror_run
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_dlerror_run
+}

@@ -23,6 +23,7 @@ Makefile
 Makefile.in
 aclocal.m4
 autom4te.cache
+built.*
 compile
 config.guess
 config.h
@@ -32,6 +33,7 @@ config.status
 config.sub
 configure
 depcomp
+gen
 install-sh
 libtool
 ltmain.sh
@@ -47,3 +49,8 @@ src/lib/mycms-all.exports
 src/tool/mycms-tool
 stamp-h1
 test-driver
+test/ca/rootca.pki
+test/ca/rootca.vars
+test/ca/subca.pki
+test/ca/subca.vars
+test/ca/vars

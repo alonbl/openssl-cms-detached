@@ -98,8 +98,15 @@ mycms_dict_destruct(
 		goto cleanup;
 	}
 
-	mycms_dict_entry_clear(dict);
-	mycms_system_free(system, dict);
+	if (!mycms_dict_entry_clear(dict)) {
+		goto cleanup;
+	}
+
+	if (!mycms_system_free(system, dict)) {
+		goto cleanup;
+	}
+
+	ret = 1;
 
 cleanup:
 

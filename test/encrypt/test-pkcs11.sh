@@ -43,12 +43,11 @@ prepare_token() {
 			--login \
 			--pin secret \
 			--private \
-			--sensitive \
 			--id ${o} \
 			--label test${o} \
 			--type privkey \
-			--write-object "${srcdir}/test${o}.key" \
-			|| die "pkcs11-tool.${o}"
+			--write-object "gen/test${o}.key" \
+			|| die "pkcs11-tool.key.${o}"
 		"${PKCS11_TOOL}" \
 			--module "${MODULE}" \
 			--token-label token1 \
@@ -57,8 +56,8 @@ prepare_token() {
 			--id ${o} \
 			--label test${o} \
 			--type cert \
-			--write-object "${srcdir}/test${o}.der" \
-			|| die "pkcs11-tool.${o}"
+			--write-object "gen/test${o}.crt" \
+			|| die "pkcs11-tool.crt.${o}"
 	done
 
 	echo "Token:"
@@ -76,7 +75,7 @@ test_sanity() {
 		--cms-out="${CMS}" \
 		--data-pt="${PT}" \
 		--data-ct="${CT}" \
-		--to="${srcdir}/test1.der" \
+		--to="gen/test1.crt" \
 		|| die "sanity.encrypt"
 	echo "Decrypting by test1"
 	doval "${MYCMS_TOOL}" decrypt \
@@ -105,8 +104,8 @@ test_add_recepients() {
 		--cms-out="${CMS1}" \
 		--data-pt="${PT}" \
 		--data-ct="${CT}" \
-		--to="${srcdir}/test1.der" \
-		--to="${srcdir}/test2.der" \
+		--to="gen/test1.crt" \
+		--to="gen/test2.crt" \
 		|| die "add-recip.encrypt"
 
 	echo "Ading to test3 and test4 using test1"
@@ -115,9 +114,9 @@ test_add_recepients() {
 		--cms-out="${CMS2}" \
 		--recip-cert="pkcs11:module=${MODULE}:token-label=token1:cert-label=test1" \
 		--recip-cert-pass="pass:secret" \
-		--to="${srcdir}/test3.der" \
-		--to="${srcdir}/test4.der" \
-		#|| die "add-recip.encrypt"
+		--to="gen/test3.crt" \
+		--to="gen/test4.crt" \
+		|| die "add-recip.encrypt"
 
 	local x
 	for x in test1 test2 test3 test4; do
@@ -135,7 +134,7 @@ test_add_recepients() {
 	return 0
 }
 
-
+[ -x "${MYCMS_TOOL}" ] || skip "no tool"
 features="$("${MYCMS_TOOL}" --version | grep "Features")" || die "Cannot execute tool"
 echo "${features}" | grep -q "sane" || die "tool is insane"
 echo "${features}" | grep -q "encrypt" || skip "encrypt feature is not available"

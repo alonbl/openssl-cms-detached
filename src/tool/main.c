@@ -5,8 +5,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <openssl/err.h>
-
 #include <mycms/mycms.h>
 #include <mycms/mycms-certificate-driver-file.h>
 #include <mycms/mycms-certificate-driver-pkcs11.h>
@@ -22,16 +20,20 @@ static const char *__FEATURES[] = {
 #if defined(ENABLE_CERTIFICATE_DRIVER_PKCS11)
 	"certificate-driver-pkcs11",
 #endif
-#if defined(ENABLE_CMS_DECRYPT)
-	"decrypt",
+#if defined(ENABLE_CMS_SIGN)
+	"sign",
+#endif
+#if defined(ENABLE_CMS_VERIFY)
+	"verify",
 #endif
 #if defined(ENABLE_CMS_ENCRYPT)
 	"encrypt",
 #endif
+#if defined(ENABLE_CMS_DECRYPT)
+	"decrypt",
+#endif
 	NULL
 };
-
-#if defined(ENABLE_CMS_ENCRYPT) || defined(ENABLE_CMS_DECRYPT)
 
 typedef int (*certificate_driver_apply)(const mycms_certificate c);
 typedef const char *(*certificate_driver_usage)(void);
@@ -197,6 +199,453 @@ __passphrase_callback(
 	}
 }
 
+#if defined(ENABLE_CMS_SIGN)
+
+static int __cmd_sign(int argc, char *argv[]) {
+	enum {
+		OPT_HELP = 0x1000,
+		OPT_DIGEST,
+		OPT_SIGNER_CERT,
+		OPT_SIGNER_CERT_PASS,
+		OPT_CMS_IN,
+		OPT_CMS_OUT,
+		OPT_DATA_IN,
+		OPT_MAX
+	};
+
+	static struct option long_options[] = {
+		{"help\0this usage", no_argument, NULL, OPT_HELP},
+		{"digest\0DIGEST|digest to use, default is SHA3-256", required_argument, NULL, OPT_DIGEST},
+		{"signer-cert\0CERTIFICATE_EXPRESSION|signer certificate to use", required_argument, NULL, OPT_SIGNER_CERT},
+		{"signer-cert-pass\0PASSPHRASE_EXPRESSION|signer certificate passphrase to use", required_argument, NULL, OPT_SIGNER_CERT_PASS},
+		{"cms-in\0FILE|input cms for resign", required_argument, NULL, OPT_CMS_IN},
+		{"cms-out\0FILE|output cms", required_argument, NULL, OPT_CMS_OUT},
+		{"data-in\0FILE|input text data", required_argument, NULL, OPT_DATA_IN},
+		{NULL, 0, NULL, 0}
+	};
+
+	char optstring[1024];
+	int option;
+	int ret = 1;
+
+	const char *digest = "SHA3-256";
+	const char * certificate_exp = NULL;
+	const char * pass_exp = NULL;
+
+	char _mycms_system[MYCMS_SYSTEM_CONTEXT_SIZE] = {0};
+	mycms_system system = (mycms_system)_mycms_system;
+	mycms mycms = NULL;
+	mycms_io cms_in = NULL;
+	mycms_io cms_out = NULL;
+	mycms_io data_in = NULL;
+	mycms_dict dict = NULL;
+	mycms_certificate certificate = NULL;
+
+	if (!mycms_system_init(system, sizeof(_mycms_system))) {
+		goto cleanup;
+	}
+
+	if ((mycms = mycms_new(system)) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_construct(mycms)) {
+		goto cleanup;
+	}
+
+	if (!getoptutil_short_from_long(long_options, "+", optstring, sizeof(optstring))) {
+		goto cleanup;
+	}
+
+	while ((option = getopt_long(argc, argv, optstring, long_options, NULL)) != -1) {
+		switch (option) {
+			case OPT_HELP:
+				getoptutil_usage(stdout, argv[0], "sign [options]", long_options);
+				ret = 0;
+				goto cleanup;
+			case OPT_DIGEST:
+				digest = optarg;
+			break;
+			case OPT_CMS_IN:
+				if ((cms_in = mycms_io_new(mycms)) == NULL) {
+					goto cleanup;
+				}
+				if (!mycms_io_construct(cms_in)) {
+					goto cleanup;
+				}
+				if (!mycms_io_open_file(cms_in, optarg, "rb")) {
+					goto cleanup;
+				}
+			break;
+			case OPT_CMS_OUT:
+				if ((cms_out = mycms_io_new(mycms)) == NULL) {
+					goto cleanup;
+				}
+				if (!mycms_io_construct(cms_out)) {
+					goto cleanup;
+				}
+				if (!mycms_io_open_file(cms_out, optarg, "wb")) {
+					goto cleanup;
+				}
+			break;
+			case OPT_DATA_IN:
+				if ((data_in = mycms_io_new(mycms)) == NULL) {
+					goto cleanup;
+				}
+				if (!mycms_io_construct(data_in)) {
+					goto cleanup;
+				}
+				if (!mycms_io_open_file(data_in, optarg, "rb")) {
+					goto cleanup;
+				}
+			break;
+			case OPT_SIGNER_CERT:
+				certificate_exp = optarg;
+			break;
+			case OPT_SIGNER_CERT_PASS:
+				pass_exp = optarg;
+			break;
+			default:
+				fprintf(stderr, "Invalid option\n");
+				goto cleanup;
+		}
+	}
+	if (optind != argc) {
+		fprintf(stderr, "Unexpected positional options\n");
+		goto cleanup;
+	}
+
+	if (certificate_exp == NULL) {
+		fprintf(stderr, "Certificate is mandatory\n");
+		goto cleanup;
+	}
+	if (cms_out == NULL) {
+		fprintf(stderr, "CMS out is mandatory\n");
+		goto cleanup;
+	}
+
+	if ((dict = mycms_dict_new(mycms)) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_dict_construct(dict)) {
+		goto cleanup;
+	}
+
+	if (!util_split_string(dict, certificate_exp)) {
+		goto cleanup;
+	}
+
+	if ((certificate = mycms_certificate_new(mycms)) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_certificate_construct(certificate)) {
+		goto cleanup;
+	}
+
+	if (!mycms_certificate_set_userdata(certificate, pass_exp)) {
+		goto cleanup;
+	}
+
+	if (!mycms_certificate_set_passphrase_callback(certificate, __passphrase_callback)) {
+		goto cleanup;
+	}
+
+	{
+		certificate_driver_apply x;
+		if ((x = __get_certificate_driver(&certificate_exp)) == NULL) {
+			goto cleanup;
+		}
+		if (!x(certificate)) {
+			goto cleanup;
+		}
+	}
+
+	if (!mycms_certificate_load(certificate, dict)) {
+		goto cleanup;
+	}
+
+	if (!mycms_sign(mycms, certificate, digest, cms_in, cms_out, data_in)) {
+		goto cleanup;
+	}
+
+	ret = 0;
+
+cleanup:
+
+	mycms_io_destruct(cms_in);
+	cms_in = NULL;
+
+	mycms_io_destruct(cms_out);
+	cms_out = NULL;
+
+	mycms_io_destruct(data_in);
+	data_in = NULL;
+
+	mycms_certificate_destruct(certificate);
+	certificate = NULL;
+
+	mycms_dict_destruct(dict);
+	dict = NULL;
+
+	mycms_destruct(mycms);
+	mycms = NULL;
+
+	mycms_system_clean(system);
+
+	return ret;
+}
+
+#endif
+
+#if defined(ENABLE_CMS_VERIFY)
+
+static int __cmd_verify_list(int argc, char *argv[]) {
+	enum {
+		OPT_HELP = 0x1000,
+		OPT_CMS_IN,
+		OPT_MAX
+	};
+
+	static struct option long_options[] = {
+		{"help\0this usage", no_argument, NULL, OPT_HELP},
+		{"cms-in\0FILE|input cms", required_argument, NULL, OPT_CMS_IN},
+		{NULL, 0, NULL, 0}
+	};
+
+	char optstring[1024];
+	int option;
+	int ret = 1;
+
+	char _mycms_system[MYCMS_SYSTEM_CONTEXT_SIZE] = {0};
+	mycms_system system = (mycms_system)_mycms_system;
+	mycms mycms = NULL;
+	mycms_io cms_in = NULL;
+	mycms_list_blob keyids = NULL;
+	mycms_list_blob t = NULL;
+
+	if (!mycms_system_init(system, sizeof(_mycms_system))) {
+		goto cleanup;
+	}
+
+	if ((mycms = mycms_new(system)) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_construct(mycms)) {
+		goto cleanup;
+	}
+
+	if (!getoptutil_short_from_long(long_options, "+", optstring, sizeof(optstring))) {
+		goto cleanup;
+	}
+
+	while ((option = getopt_long(argc, argv, optstring, long_options, NULL)) != -1) {
+		switch (option) {
+			case OPT_HELP:
+				getoptutil_usage(stdout, argv[0], "sign [options]", long_options);
+				ret = 0;
+				goto cleanup;
+			case OPT_CMS_IN:
+				if ((cms_in = mycms_io_new(mycms)) == NULL) {
+					goto cleanup;
+				}
+				if (!mycms_io_construct(cms_in)) {
+					goto cleanup;
+				}
+				if (!mycms_io_open_file(cms_in, optarg, "rb")) {
+					goto cleanup;
+				}
+			break;
+			default:
+				fprintf(stderr, "Invalid option\n");
+				goto cleanup;
+		}
+	}
+	if (optind != argc) {
+		fprintf(stderr, "Unexpected positional options\n");
+		goto cleanup;
+	}
+
+	if (cms_in == NULL) {
+		fprintf(stderr, "CMS in is mandatory\n");
+		goto cleanup;
+	}
+
+	if (!mycms_verify_list(mycms, cms_in, &keyids)) {
+		goto cleanup;
+	}
+
+	for (t = keyids; t != NULL; t = t->next) {
+		size_t i;
+		for (i = 0; i < t->blob.size; i++) {
+			printf("%s%02x", i == 0 ? "" : ":", t->blob.data[i]);
+		}
+		printf("\n");
+	}
+
+	ret = 0;
+
+cleanup:
+
+	mycms_io_destruct(cms_in);
+	cms_in = NULL;
+
+	mycms_verify_list_free(mycms, keyids);
+	keyids = NULL;
+
+	mycms_destruct(mycms);
+	mycms = NULL;
+
+	mycms_system_clean(system);
+
+	return ret;
+}
+
+static int __cmd_verify(int argc, char *argv[]) {
+	enum {
+		OPT_HELP = 0x1000,
+		OPT_CMS_IN,
+		OPT_DATA_IN,
+		OPT_CERT,
+		OPT_MAX
+	};
+
+	static struct option long_options[] = {
+		{"help\0this usage", no_argument, NULL, OPT_HELP},
+		{"cms-in\0FILE|input cms", required_argument, NULL, OPT_CMS_IN},
+		{"data-in\0FILE|input text data", required_argument, NULL, OPT_DATA_IN},
+		{"cert\0FILE|add certificate to consider", required_argument, NULL, OPT_CERT},
+		{NULL, 0, NULL, 0}
+	};
+
+	char optstring[1024];
+	int option;
+	int verified = 0;
+	int ret = 1;
+
+	char _mycms_system[MYCMS_SYSTEM_CONTEXT_SIZE] = {0};
+	mycms_system system = (mycms_system)_mycms_system;
+	mycms mycms = NULL;
+	mycms_io cms_in = NULL;
+	mycms_io data_in = NULL;
+	mycms_list_blob certs = NULL;
+
+	if (!mycms_system_init(system, sizeof(_mycms_system))) {
+		goto cleanup;
+	}
+
+	if ((mycms = mycms_new(system)) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_construct(mycms)) {
+		goto cleanup;
+	}
+
+	if (!getoptutil_short_from_long(long_options, "+", optstring, sizeof(optstring))) {
+		goto cleanup;
+	}
+
+	while ((option = getopt_long(argc, argv, optstring, long_options, NULL)) != -1) {
+		switch (option) {
+			case OPT_HELP:
+				getoptutil_usage(stdout, argv[0], "sign [options]", long_options);
+				ret = 0;
+				goto cleanup;
+			case OPT_CMS_IN:
+				if ((cms_in = mycms_io_new(mycms)) == NULL) {
+					goto cleanup;
+				}
+				if (!mycms_io_construct(cms_in)) {
+					goto cleanup;
+				}
+				if (!mycms_io_open_file(cms_in, optarg, "rb")) {
+					goto cleanup;
+				}
+			break;
+			case OPT_DATA_IN:
+				if ((data_in = mycms_io_new(mycms)) == NULL) {
+					goto cleanup;
+				}
+				if (!mycms_io_construct(data_in)) {
+					goto cleanup;
+				}
+				if (!mycms_io_open_file(data_in, optarg, "rb")) {
+					goto cleanup;
+				}
+			break;
+			case OPT_CERT:
+				{
+					mycms_list_blob t;
+
+					if ((t = mycms_system_zalloc(system, sizeof(*t))) == NULL) {
+						goto cleanup;
+					}
+
+					if (!__load_cert(system, optarg, &t->blob)) {
+						mycms_system_free(system, t);
+						goto cleanup;
+					}
+
+					t->next = certs;
+					certs = t;
+				}
+			break;
+			default:
+				fprintf(stderr, "Invalid option\n");
+				goto cleanup;
+		}
+	}
+	if (optind != argc) {
+		fprintf(stderr, "Unexpected positional options\n");
+		goto cleanup;
+	}
+
+	if (cms_in == NULL) {
+		fprintf(stderr, "CMS in is mandatory\n");
+		goto cleanup;
+	}
+
+	if (!mycms_verify(mycms, cms_in, data_in, certs, &verified)) {
+		goto cleanup;
+	}
+
+	if (verified) {
+		printf("VERIFIED");
+	} else {
+		printf("FAILED");
+	}
+
+	ret = 0;
+
+cleanup:
+
+	mycms_io_destruct(cms_in);
+	cms_in = NULL;
+
+	mycms_io_destruct(data_in);
+	data_in = NULL;
+
+	mycms_destruct(mycms);
+	mycms = NULL;
+
+	while(certs != NULL) {
+		mycms_list_blob t = certs;
+		certs = certs->next;
+		t->next = NULL;
+		mycms_system_free(system, t->blob.data);
+		t->blob.data = NULL;
+		mycms_system_free(system, t);
+	}
+
+	mycms_system_clean(system);
+
+	return ret;
+}
+
+
 #endif
 
 #if defined(ENABLE_CMS_ENCRYPT)
@@ -226,17 +675,25 @@ static int __cmd_encrypt(int argc, char *argv[]) {
 	int option;
 	int ret = 1;
 
-	BIO *cms_out = NULL;
-	BIO *data_pt = NULL;
-	BIO *data_ct = NULL;
+	const char *cipher = "AES-256-CBC";
 
 	char _mycms_system[MYCMS_SYSTEM_CONTEXT_SIZE] = {0};
 	mycms_system system = (mycms_system)_mycms_system;
 	mycms mycms = NULL;
+	mycms_io cms_out = NULL;
+	mycms_io data_pt = NULL;
+	mycms_io data_ct = NULL;
 	mycms_list_blob to = NULL;
-	const char *cipher = "AES-256-CBC";
 
 	if (!mycms_system_init(system, sizeof(_mycms_system))) {
+		goto cleanup;
+	}
+
+	if ((mycms = mycms_new(system)) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_construct(mycms)) {
 		goto cleanup;
 	}
 
@@ -254,20 +711,35 @@ static int __cmd_encrypt(int argc, char *argv[]) {
 				cipher = optarg;
 			break;
 			case OPT_CMS_OUT:
-				if ((cms_out = BIO_new_file(optarg, "wb")) == NULL) {
-					ERR_print_errors_fp(stderr);
+				if ((cms_out = mycms_io_new(mycms)) == NULL) {
+					goto cleanup;
+				}
+				if (!mycms_io_construct(cms_out)) {
+					goto cleanup;
+				}
+				if (!mycms_io_open_file(cms_out, optarg, "wb")) {
 					goto cleanup;
 				}
 			break;
 			case OPT_DATA_PT:
-				if ((data_pt = BIO_new_file(optarg, "rb")) == NULL) {
-					ERR_print_errors_fp(stderr);
+				if ((data_pt = mycms_io_new(mycms)) == NULL) {
+					goto cleanup;
+				}
+				if (!mycms_io_construct(data_pt)) {
+					goto cleanup;
+				}
+				if (!mycms_io_open_file(data_pt, optarg, "rb")) {
 					goto cleanup;
 				}
 			break;
 			case OPT_DATA_CT:
-				if ((data_ct = BIO_new_file(optarg, "wb")) == NULL) {
-					ERR_print_errors_fp(stderr);
+				if ((data_ct = mycms_io_new(mycms)) == NULL) {
+					goto cleanup;
+				}
+				if (!mycms_io_construct(data_ct)) {
+					goto cleanup;
+				}
+				if (!mycms_io_open_file(data_ct, optarg, "wb")) {
 					goto cleanup;
 				}
 			break;
@@ -299,23 +771,15 @@ static int __cmd_encrypt(int argc, char *argv[]) {
 	}
 
 	if (cms_out == NULL) {
-		fprintf(stderr, "Out is mandatory\n");
+		fprintf(stderr, "CMS out is mandatory\n");
 		goto cleanup;
 	}
 	if (data_pt == NULL) {
-		fprintf(stderr, "Data in is mandatory\n");
+		fprintf(stderr, "Data PT is mandatory\n");
 		goto cleanup;
 	}
 	if (data_ct == NULL) {
-		fprintf(stderr, "Data out is mandatory\n");
-		goto cleanup;
-	}
-
-	if ((mycms = mycms_new(system)) == NULL) {
-		goto cleanup;
-	}
-
-	if (!mycms_construct(mycms)) {
+		fprintf(stderr, "Data CT is mandatory\n");
 		goto cleanup;
 	}
 
@@ -327,13 +791,13 @@ static int __cmd_encrypt(int argc, char *argv[]) {
 
 cleanup:
 
-	BIO_free(cms_out);
+	mycms_io_destruct(cms_out);
 	cms_out = NULL;
 
-	BIO_free(data_pt);
+	mycms_io_destruct(data_pt);
 	data_pt = NULL;
 
-	BIO_free(data_ct);
+	mycms_io_destruct(data_ct);
 	data_ct = NULL;
 
 	while(to != NULL) {
@@ -381,17 +845,25 @@ static int __cmd_encrypt_add(int argc, char *argv[]) {
 
 	const char * certificate_exp = NULL;
 	const char * pass_exp = NULL;
-	BIO *cms_in = NULL;
-	BIO *cms_out = NULL;
-	mycms_list_blob to = NULL;
 
 	char _mycms_system[MYCMS_SYSTEM_CONTEXT_SIZE] = {0};
 	mycms_system system = (mycms_system)_mycms_system;
 	mycms mycms = NULL;
+	mycms_io cms_in = NULL;
+	mycms_io cms_out = NULL;
+	mycms_list_blob to = NULL;
 	mycms_dict dict = NULL;
 	mycms_certificate certificate = NULL;
 
 	if (!mycms_system_init(system, sizeof(_mycms_system))) {
+		goto cleanup;
+	}
+
+	if ((mycms = mycms_new(system)) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_construct(mycms)) {
 		goto cleanup;
 	}
 
@@ -407,14 +879,24 @@ static int __cmd_encrypt_add(int argc, char *argv[]) {
 				ret = 0;
 				goto cleanup;
 			case OPT_CMS_IN:
-				if ((cms_in = BIO_new_file(optarg, "rb")) == NULL) {
-					ERR_print_errors_fp(stderr);
+				if ((cms_in = mycms_io_new(mycms)) == NULL) {
+					goto cleanup;
+				}
+				if (!mycms_io_construct(cms_in)) {
+					goto cleanup;
+				}
+				if (!mycms_io_open_file(cms_in, optarg, "rb")) {
 					goto cleanup;
 				}
 			break;
 			case OPT_CMS_OUT:
-				if ((cms_out = BIO_new_file(optarg, "wb")) == NULL) {
-					ERR_print_errors_fp(stderr);
+				if ((cms_out = mycms_io_new(mycms)) == NULL) {
+					goto cleanup;
+				}
+				if (!mycms_io_construct(cms_out)) {
+					goto cleanup;
+				}
+				if (!mycms_io_open_file(cms_out, optarg, "wb")) {
 					goto cleanup;
 				}
 			break;
@@ -456,23 +938,15 @@ static int __cmd_encrypt_add(int argc, char *argv[]) {
 		goto cleanup;
 	}
 	if (cms_in == NULL) {
-		fprintf(stderr, "In is mandatory\n");
+		fprintf(stderr, "CMS in is mandatory\n");
 		goto cleanup;
 	}
 	if (cms_out == NULL) {
-		fprintf(stderr, "Out is mandatory\n");
+		fprintf(stderr, "CMS out is mandatory\n");
 		goto cleanup;
 	}
 	if (to == NULL) {
 		fprintf(stderr, "To is mandatory\n");
-		goto cleanup;
-	}
-
-	if ((mycms = mycms_new(system)) == NULL) {
-		goto cleanup;
-	}
-
-	if (!mycms_construct(mycms)) {
 		goto cleanup;
 	}
 
@@ -526,17 +1000,17 @@ static int __cmd_encrypt_add(int argc, char *argv[]) {
 
 cleanup:
 
+	mycms_io_destruct(cms_in);
+	cms_in = NULL;
+
+	mycms_io_destruct(cms_out);
+	cms_out = NULL;
+
 	mycms_certificate_destruct(certificate);
 	certificate = NULL;
 
 	mycms_dict_destruct(dict);
 	dict = NULL;
-
-	BIO_free(cms_in);
-	cms_in = NULL;
-
-	BIO_free(cms_out);
-	cms_out = NULL;
 
 	while(to != NULL) {
 		mycms_list_blob t = to;
@@ -586,17 +1060,25 @@ static int __cmd_decrypt(int argc, char *argv[]) {
 
 	const char * certificate_exp = NULL;
 	const char * pass_exp = NULL;
-	BIO *cms_in = NULL;
-	BIO *data_pt = NULL;
-	BIO *data_ct = NULL;
 
 	char _mycms_system[MYCMS_SYSTEM_CONTEXT_SIZE] = {0};
 	mycms_system system = (mycms_system)_mycms_system;
 	mycms mycms = NULL;
+	mycms_io cms_in = NULL;
+	mycms_io data_pt = NULL;
+	mycms_io data_ct = NULL;
 	mycms_dict dict = NULL;
 	mycms_certificate certificate = NULL;
 
 	if (!mycms_system_init(system, sizeof(_mycms_system))) {
+		goto cleanup;
+	}
+
+	if ((mycms = mycms_new(system)) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_construct(mycms)) {
 		goto cleanup;
 	}
 
@@ -612,8 +1094,13 @@ static int __cmd_decrypt(int argc, char *argv[]) {
 				ret = 0;
 				goto cleanup;
 			case OPT_CMS_IN:
-				if ((cms_in = BIO_new_file(optarg, "rb")) == NULL) {
-					ERR_print_errors_fp(stderr);
+				if ((cms_in = mycms_io_new(mycms)) == NULL) {
+					goto cleanup;
+				}
+				if (!mycms_io_construct(cms_in)) {
+					goto cleanup;
+				}
+				if (!mycms_io_open_file(cms_in, optarg, "rb")) {
 					goto cleanup;
 				}
 			break;
@@ -624,14 +1111,24 @@ static int __cmd_decrypt(int argc, char *argv[]) {
 				pass_exp = optarg;
 			break;
 			case OPT_DATA_PT:
-				if ((data_pt = BIO_new_file(optarg, "wb")) == NULL) {
-					ERR_print_errors_fp(stderr);
+				if ((data_pt = mycms_io_new(mycms)) == NULL) {
+					goto cleanup;
+				}
+				if (!mycms_io_construct(data_pt)) {
+					goto cleanup;
+				}
+				if (!mycms_io_open_file(data_pt, optarg, "wb")) {
 					goto cleanup;
 				}
 			break;
 			case OPT_DATA_CT:
-				if ((data_ct = BIO_new_file(optarg, "rb")) == NULL) {
-					ERR_print_errors_fp(stderr);
+				if ((data_ct = mycms_io_new(mycms)) == NULL) {
+					goto cleanup;
+				}
+				if (!mycms_io_construct(data_ct)) {
+					goto cleanup;
+				}
+				if (!mycms_io_open_file(data_ct, optarg, "rb")) {
 					goto cleanup;
 				}
 			break;
@@ -650,24 +1147,16 @@ static int __cmd_decrypt(int argc, char *argv[]) {
 		goto cleanup;
 	}
 	if (cms_in == NULL) {
-		fprintf(stderr, "In is mandatory\n");
+		fprintf(stderr, "CMS in is mandatory\n");
 		goto cleanup;
 	}
 
 	if (data_pt == NULL) {
-		fprintf(stderr, "Data in is mandatory\n");
+		fprintf(stderr, "Data PT is mandatory\n");
 		goto cleanup;
 	}
 	if (data_ct == NULL) {
-		fprintf(stderr, "Data out is mandatory\n");
-		goto cleanup;
-	}
-
-	if ((mycms = mycms_new(system)) == NULL) {
-		goto cleanup;
-	}
-
-	if (!mycms_construct(mycms)) {
+		fprintf(stderr, "Data CT is mandatory\n");
 		goto cleanup;
 	}
 
@@ -721,6 +1210,15 @@ static int __cmd_decrypt(int argc, char *argv[]) {
 
 cleanup:
 
+	mycms_io_destruct(cms_in);
+	cms_in = NULL;
+
+	mycms_io_destruct(data_pt);
+	data_pt = NULL;
+
+	mycms_io_destruct(data_ct);
+	data_ct = NULL;
+
 	mycms_certificate_destruct(certificate);
 	certificate = NULL;
 
@@ -729,15 +1227,6 @@ cleanup:
 
 	mycms_destruct(mycms);
 	mycms = NULL;
-
-	BIO_free(cms_in);
-	cms_in = NULL;
-
-	BIO_free(data_pt);
-	data_pt = NULL;
-
-	BIO_free(data_ct);
-	data_ct = NULL;
 
 	mycms_destruct(mycms);
 	mycms = NULL;
@@ -761,6 +1250,13 @@ int main(int argc, char *argv[]) {
 		const char *m;
 		int (*f)(int argc, char *argv[]);
 	} commands[] = {
+#if defined(ENABLE_CMS_SIGN)
+		{"sign", "sign data", __cmd_sign},
+#endif
+#if defined(ENABLE_CMS_VERIFY)
+		{"verify-list", "list signers", __cmd_verify_list},
+		{"verify", "verift signature", __cmd_verify},
+#endif
 #if defined(ENABLE_CMS_ENCRYPT)
 		{"encrypt", "encrypt data to recipients", __cmd_encrypt},
 		{"encrypt-add", "add recipients to to existing cms", __cmd_encrypt_add},

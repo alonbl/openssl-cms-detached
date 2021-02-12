@@ -6,6 +6,7 @@
 #include <openssl/bio.h>
 
 #include "mycms-certificate.h"
+#include "mycms-io.h"
 #include "mycms-system.h"
 
 int
@@ -30,29 +31,64 @@ mycms_destruct(mycms mycms);
 mycms_system
 mycms_get_system(mycms mycms);
 
-int mycms_decrypt(
-	const mycms mycms,
+int
+mycms_sign(
+	mycms mycms __attribute__((unused)),
 	const mycms_certificate certificate,
-	BIO *cms_in,
-	BIO *data_pt,
-	BIO *data_ct
+	const char * const digest_name,
+	const mycms_io cms_in,
+	const mycms_io cms_out,
+	const mycms_io data_in
 );
 
-int mycms_encrypt(
+int
+mycms_verify_list_free(
 	const mycms mycms,
-	const char * const cipher,
-	const mycms_list_blob to,
-	BIO *cms_out,
-	BIO *data_pt,
-	BIO *data_ct
+	const mycms_list_blob l
 );
 
-int mycms_encrypt_add(
+int
+mycms_verify_list(
+	const mycms mycms,
+	const mycms_io cms_in,
+	mycms_list_blob * const keyids
+);
+
+int
+mycms_verify(
+	const mycms mycms,
+	const mycms_io cms_in,
+	const mycms_io data_in,
+	const mycms_list_blob certs,
+	int * const verified
+);
+
+int
+mycms_encrypt(
+	const mycms mycms,
+	const char * const cipher_name,
+	const mycms_list_blob to,
+	const mycms_io cms_out,
+	const mycms_io data_pt,
+	const mycms_io data_ct
+);
+
+int
+mycms_encrypt_add(
 	const mycms mycms,
 	const mycms_certificate certificate,
 	const mycms_list_blob to,
-	BIO *cms_in,
-	BIO *cms_out
+	const mycms_io cms_in,
+	const mycms_io cms_out
+);
+
+int
+mycms_decrypt(
+	const mycms mycms,
+	const mycms_certificate certificate,
+	const mycms_io cms_in,
+	const mycms_io data_pt,
+	const mycms_io data_ct
 );
 
 #endif

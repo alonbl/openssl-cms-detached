@@ -7,13 +7,15 @@
 #include <mycms/mycms.h>
 
 #include "mycms-certificate-private.h"
+#include "mycms-io-private.h"
 
-int mycms_decrypt(
-	mycms mycms __attribute__((unused)),
+int
+mycms_decrypt(
+	const mycms mycms,
 	const mycms_certificate certificate,
-	BIO *cms_in,
-	BIO *data_pt,
-	BIO *data_ct
+	const mycms_io cms_in,
+	const mycms_io data_pt,
+	const mycms_io data_ct
 ) {
 	CMS_ContentInfo *cms = NULL;
 	int flags = CMS_BINARY | CMS_DETACHED;
@@ -39,7 +41,7 @@ int mycms_decrypt(
 		goto cleanup;
 	}
 
-	if ((cms = d2i_CMS_bio(cms_in, NULL)) == NULL) {
+	if ((cms = d2i_CMS_bio(_mycms_io_get_BIO(cms_in), NULL)) == NULL) {
 		goto cleanup;
 	}
 
@@ -47,7 +49,7 @@ int mycms_decrypt(
 		goto cleanup;
 	}
 
-	if (!CMS_decrypt(cms, NULL, NULL, data_ct, data_pt, flags)) {
+	if (!CMS_decrypt(cms, NULL, NULL, _mycms_io_get_BIO(data_ct), _mycms_io_get_BIO(data_pt), flags)) {
 		goto cleanup;
 	}
 

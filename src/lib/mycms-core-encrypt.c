@@ -8,6 +8,7 @@
 #include <mycms/mycms.h>
 
 #include "mycms-certificate-private.h"
+#include "mycms-io-private.h"
 
 static
 STACK_OF(CMS_RecipientInfo) *
@@ -68,12 +69,12 @@ cleanup:
 
 int
 mycms_encrypt(
-	mycms mycms,
-	const char * const cipher,
+	const mycms mycms,
+	const char * const cipher_name,
 	const mycms_list_blob to,
-	BIO *cms_out,
-	BIO *data_pt,
-	BIO *data_ct
+	const mycms_io cms_out,
+	const mycms_io data_pt,
+	const mycms_io data_ct
 ) {
 	STACK_OF(CMS_RecipientInfo) *added = NULL;
 	const EVP_CIPHER *c = NULL;
@@ -85,7 +86,7 @@ mycms_encrypt(
 		goto cleanup;
 	}
 
-	if (cipher == NULL) {
+	if (cipher_name == NULL) {
 		goto cleanup;
 	}
 
@@ -105,7 +106,7 @@ mycms_encrypt(
 		goto cleanup;
 	}
 
-	if ((c = EVP_get_cipherbyname("AES-256-CBC")) == NULL) {
+	if ((c = EVP_get_cipherbyname(cipher_name)) == NULL) {
 		goto cleanup;
 	}
 
@@ -117,11 +118,11 @@ mycms_encrypt(
 		goto cleanup;
 	}
 
-	if (CMS_final(cms, data_pt, data_ct, flags) <= 0) {
+	if (!CMS_final(cms, _mycms_io_get_BIO(data_pt), _mycms_io_get_BIO(data_ct), flags)) {
 		goto cleanup;
 	}
 
-	if (i2d_CMS_bio(cms_out, cms)  <= 0) {
+	if (i2d_CMS_bio(_mycms_io_get_BIO(cms_out), cms)  <= 0) {
 		goto cleanup;
 	}
 
@@ -138,12 +139,13 @@ cleanup:
 	return ret;
 }
 
-int mycms_encrypt_add(
-	mycms mycms,
+int
+mycms_encrypt_add(
+	const mycms mycms,
 	const mycms_certificate certificate,
 	const mycms_list_blob to,
-	BIO *cms_in,
-	BIO *cms_out
+	const mycms_io cms_in,
+	const mycms_io cms_out
 ) {
 	STACK_OF(CMS_RecipientInfo) *added = NULL;
 	CMS_ContentInfo *cms = NULL;
@@ -171,7 +173,7 @@ int mycms_encrypt_add(
 		goto cleanup;
 	}
 
-	if ((cms = d2i_CMS_bio(cms_in, NULL)) == NULL) {
+	if ((cms = d2i_CMS_bio(_mycms_io_get_BIO(cms_in), NULL)) == NULL) {
 		goto cleanup;
 	}
 
@@ -191,11 +193,11 @@ int mycms_encrypt_add(
 		}
 	}
 
-	if (CMS_final(cms, NULL, NULL, flags) <= 0) {
+	if (!CMS_final(cms, NULL, NULL, flags)) {
 		goto cleanup;
 	}
 
-	if (i2d_CMS_bio(cms_out, cms)  <= 0) {
+	if (i2d_CMS_bio(_mycms_io_get_BIO(cms_out), cms)  <= 0) {
 		goto cleanup;
 	}
 

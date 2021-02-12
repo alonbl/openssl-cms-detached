@@ -162,6 +162,7 @@ __rsa_op(
 	int private_op,
 	int flen,
 	const unsigned char *from,
+	int tlen,
 	unsigned char *to,
 	RSA *rsa,
 	int padding
@@ -188,7 +189,7 @@ __rsa_op(
 		from,
 		flen,
 		to,
-		flen,
+		tlen,
 		cpadding
 	);
 
@@ -210,6 +211,7 @@ __openssl_rsa_enc(
 		MYCMS_PRIVATE_OP_ENCRYPT,
 		flen,
 		from,
+		RSA_size(rsa),
 		to,
 		rsa,
 		padding
@@ -229,6 +231,7 @@ __openssl_rsa_dec(
 		MYCMS_PRIVATE_OP_DECRYPT,
 		flen,
 		from,
+		flen,
 		to,
 		rsa,
 		padding

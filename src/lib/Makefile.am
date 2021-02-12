@@ -13,9 +13,12 @@ MYCMS_EXPORTS = \
 	mycms-certificate-driver-file.exports \
 	mycms-certificate-driver-pkcs11.exports \
 	mycms-certificate.exports \
-	mycms-decrypt.exports \
+	mycms-core-decrypt.exports \
+	mycms-core-encrypt.exports \
+	mycms-core-sign.exports \
+	mycms-core-verify.exports \
 	mycms-dict.exports \
-	mycms-encrypt.exports \
+	mycms-io.exports \
 	mycms-system.exports \
 	mycms.exports \
 	$(NULL)
@@ -41,18 +44,30 @@ libmycms_la_SOURCES = \
 	mycms-certificate-private.h \
 	mycms-certificate.c \
 	mycms-dict.c \
+	mycms-io-private.h \
+	mycms-io.c \
 	mycms-private.h \
 	mycms-system.c \
 	mycms.c \
 	$(NULL)
+if ENABLE_CMS_SIGN
+libmycms_la_SOURCES += \
+	mycms-core-sign.c \
+	$(NULL)
+endif
+if ENABLE_CMS_VERIFY
+libmycms_la_SOURCES += \
+	mycms-core-verify.c \
+	$(NULL)
+endif
 if ENABLE_CMS_ENCRYPT
 libmycms_la_SOURCES += \
-	mycms-encrypt.c \
+	mycms-core-encrypt.c \
 	$(NULL)
 endif
 if ENABLE_CMS_DECRYPT
 libmycms_la_SOURCES += \
-	mycms-decrypt.c \
+	mycms-core-decrypt.c \
 	$(NULL)
 endif
 if ENABLE_CERTIFICATE_DRIVER_FILE
@@ -84,13 +99,20 @@ mycms-all.exports: \
 	rm -f mycms-all.exports.tmp
 	cat "$(srcdir)/mycms-certificate.exports" >> mycms-all.exports.tmp
 	cat "$(srcdir)/mycms-dict.exports" >> mycms-all.exports.tmp
+	cat "$(srcdir)/mycms-io.exports" >> mycms-all.exports.tmp
 	cat "$(srcdir)/mycms-system.exports" >> mycms-all.exports.tmp
 	cat "$(srcdir)/mycms.exports" >> mycms-all.exports.tmp
-if ENABLE_CMS_DECRYPT
-	cat "$(srcdir)/mycms-decrypt.exports" >> mycms-all.exports.tmp
+if ENABLE_CMS_SIGN
+	cat "$(srcdir)/mycms-core-sign.exports" >> mycms-all.exports.tmp
+endif
+if ENABLE_CMS_VERIFY
+	cat "$(srcdir)/mycms-core-verify.exports" >> mycms-all.exports.tmp
 endif
 if ENABLE_CMS_ENCRYPT
-	cat "$(srcdir)/mycms-encrypt.exports" >> mycms-all.exports.tmp
+	cat "$(srcdir)/mycms-core-encrypt.exports" >> mycms-all.exports.tmp
+endif
+if ENABLE_CMS_DECRYPT
+	cat "$(srcdir)/mycms-core-decrypt.exports" >> mycms-all.exports.tmp
 endif
 if ENABLE_CERTIFICATE_DRIVER_FILE
 	cat "$(srcdir)/mycms-certificate-driver-file.exports" >> mycms-all.exports.tmp
