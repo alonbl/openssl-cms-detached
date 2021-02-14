@@ -41,6 +41,6 @@ built.pki:	Makefile
 	rm -fr gen
 	mkdir gen
 	for i in 1 2 3; do \
-		abs_builddir="$(abs_top_builddir)/test/ca" "$(srcdir)/../ca/issue.sh" sign test$$i gen/test$$i.crt gen/test$$i.key; \
+		abs_builddir="$(abs_top_builddir)/test/ca" "$(top_srcdir)/test/ca/issue.sh" sign test$$i gen/test$$i.crt gen/test$$i.key; \
 	done
 	touch built.pki

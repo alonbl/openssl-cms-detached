@@ -3,6 +3,6 @@ MAINTAINERCLEANFILES = \
 	$(NULL)
 
 SUBDIRS = \
-	ca \
-	tool \
+	encrypt \
+	sign \
 	$(NULL)

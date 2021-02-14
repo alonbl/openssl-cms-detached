@@ -164,9 +164,16 @@ mycms_verify(
 	const mycms_list_blob certs,
 	int * const verified
 ) {
-	const int flags = CMS_DETACHED | CMS_BINARY | CMS_NO_SIGNER_CERT_VERIFY;
+#if 0
+	const int flags = CMS_DETACHED | CMS_BINARY | CMS_NO_SIGNER_CERT_VERIFY | CMS_NO_CONTENT_VERIFY;
+	CMS_verify(cms, _certs, NULL, _mycms_io_get_BIO(data_in), NULL, flags);
+#endif
 	CMS_ContentInfo *cms = NULL;
 	STACK_OF(X509) *_certs = NULL;
+	STACK_OF(CMS_SignerInfo) *signers = NULL;
+	BIO *cmsbio = NULL;
+	unsigned char buf[4096];
+	int i;
 	int ret = 0;
 
 	if (mycms == NULL) {
@@ -195,14 +202,73 @@ mycms_verify(
 		goto cleanup;
 	}
 
-	*verified = CMS_verify(cms, _certs, NULL, _mycms_io_get_BIO(data_in), NULL, flags);
+	if ((signers = CMS_get0_SignerInfos(cms)) == NULL) {
+		goto cleanup;
+	}
+
+	if (sk_CMS_SignerInfo_num(signers) <= 0) {
+		goto cleanup;
+	}
+
+	/*
+	 * Do not use CMS_verify:
+	 * 1. It iterates all certificates and verify signature (resources)
+	 * 2. It must have access to all signer certificates
+         */
+	if ((cmsbio = CMS_dataInit(cms, _mycms_io_get_BIO(data_in))) == NULL) {
+		goto cleanup;
+	}
+
+	{
+		/*
+		 * Run through input and update digest
+		 */
+		int x;
+		while ((x = BIO_read(cmsbio, buf, sizeof(buf))) > 0);
+		if (x < 0) {
+			goto cleanup;
+		}
+	}
 
 	ret = 1;
+
+	for (i = 0; i < sk_X509_num(_certs); i++) {
+		X509 *x509 = sk_X509_value(_certs, i);
+		int f;
+		int j;
+
+		for (f = 0, j = 0; !f && j < sk_CMS_SignerInfo_num(signers); j++) {
+			CMS_SignerInfo *signer = sk_CMS_SignerInfo_value(signers, j);
+
+			if (!CMS_SignerInfo_cert_cmp(signer, x509)) {
+				f = 1;
+				if (CMS_SignerInfo_verify_content(signer, cmsbio) <= 0) {
+					goto cleanup;
+				}
+			}
+		}
+
+		if (!f) {
+			goto cleanup;
+		}
+	}
+
+	*verified = 1;
 
 cleanup:
 
 	sk_X509_pop_free(_certs, X509_free);
 	_certs = NULL;
+
+	{
+		BIO *tbio;
+		do {
+			tbio = BIO_pop(cmsbio);
+			BIO_free(cmsbio);
+			cmsbio = tbio;
+		} while (cmsbio != NULL && cmsbio != _mycms_io_get_BIO(data_in));
+	}
+	cmsbio = NULL;
 
 	CMS_ContentInfo_free(cms);
 	cms = NULL;

@@ -228,7 +228,6 @@ static int __cmd_sign(int argc, char *argv[]) {
 	int option;
 	int ret = 1;
 
-	const char *digest = "SHA3-256";
 	const char * certificate_exp = NULL;
 	const char * pass_exp = NULL;
 
@@ -240,6 +239,7 @@ static int __cmd_sign(int argc, char *argv[]) {
 	mycms_io data_in = NULL;
 	mycms_dict dict = NULL;
 	mycms_certificate certificate = NULL;
+	mycms_list_str digests = NULL;
 
 	if (!mycms_system_init(system, sizeof(_mycms_system))) {
 		goto cleanup;
@@ -264,7 +264,16 @@ static int __cmd_sign(int argc, char *argv[]) {
 				ret = 0;
 				goto cleanup;
 			case OPT_DIGEST:
-				digest = optarg;
+				{
+					mycms_list_str t;
+
+					if ((t = mycms_system_zalloc(system, sizeof(*t))) == NULL) {
+						goto cleanup;
+					}
+					t->next = digests;
+					digests = t;
+					t->str = optarg;
+				}
 			break;
 			case OPT_CMS_IN:
 				if ((cms_in = mycms_io_new(mycms)) == NULL) {
@@ -324,6 +333,11 @@ static int __cmd_sign(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
+	if (digests == NULL) {
+		digests = mycms_system_zalloc(system, sizeof(*digests));
+		digests->str = "SHA3-256";
+	}
+
 	if ((dict = mycms_dict_new(mycms)) == NULL) {
 		goto cleanup;
 	}
@@ -366,13 +380,19 @@ static int __cmd_sign(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
-	if (!mycms_sign(mycms, certificate, digest, cms_in, cms_out, data_in)) {
+	if (!mycms_sign(mycms, certificate, digests, cms_in, cms_out, data_in)) {
 		goto cleanup;
 	}
 
 	ret = 0;
 
 cleanup:
+
+	while (digests != NULL) {
+		mycms_list_str t = digests;
+		digests = digests->next;
+		mycms_system_free(system, t);
+	}
 
 	mycms_io_destruct(cms_in);
 	cms_in = NULL;

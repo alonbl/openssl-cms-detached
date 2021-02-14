@@ -46,6 +46,7 @@ prepare_token() {
 			--id ${o} \
 			--label test${o} \
 			--type privkey \
+			--usage-decrypt \
 			--write-object "gen/test${o}.key" \
 			|| die "pkcs11-tool.key.${o}"
 		"${PKCS11_TOOL}" \

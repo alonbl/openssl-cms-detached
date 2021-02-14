@@ -7,7 +7,10 @@
 
 #include "mycms-certificate.h"
 #include "mycms-io.h"
+#include "mycms-list.h"
 #include "mycms-system.h"
+
+MYCMS_LIST_DECLARE(str, char *, str)
 
 int
 mycms_static_init(
@@ -35,7 +38,7 @@ int
 mycms_sign(
 	mycms mycms __attribute__((unused)),
 	const mycms_certificate certificate,
-	const char * const digest_name,
+	const mycms_list_str digests,
 	const mycms_io cms_in,
 	const mycms_io cms_out,
 	const mycms_io data_in

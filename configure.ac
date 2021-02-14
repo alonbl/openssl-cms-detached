@@ -230,7 +230,8 @@ AC_CONFIG_FILES([
 	test/ca/rootca.vars
 	test/ca/subca.vars
 	test/ca/vars
-	test/encrypt/Makefile
-	test/sign/Makefile
+	test/tool/Makefile
+	test/tool/encrypt/Makefile
+	test/tool/sign/Makefile
 ])
 AC_OUTPUT
