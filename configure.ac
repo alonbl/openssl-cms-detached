@@ -49,66 +49,73 @@ AC_ARG_ENABLE(
 )
 
 AC_ARG_ENABLE(
-	[tool],
-	[AS_HELP_STRING([--disable-tool], [disable tool])],
+	[tests],
+	[AS_HELP_STRING([--enable-tests], [enable tests])],
 	,
-	[enable_tool="yes"]
+	[enable_tests="no"]
+)
+
+AC_ARG_ENABLE(
+	[tool],
+	[AS_HELP_STRING([--enable-tool], [enable tool])],
+	,
+	[enable_tool="no"]
 )
 
 AC_ARG_ENABLE(
 	[openssl-err-strings],
-	[AS_HELP_STRING([--disable-openssl-err-strings], [disable openssl error strings])],
+	[AS_HELP_STRING([--enable-openssl-err-strings], [enable openssl error strings])],
 	,
-	[enable_openssl_err_strings="yes"]
+	[enable_openssl_err_strings="no"]
 )
 
 AC_ARG_ENABLE(
 	[cms-sign],
-	[AS_HELP_STRING([--disable-cms-sign], [disable cms sign support])],
+	[AS_HELP_STRING([--enable-cms-sign], [enable cms sign support])],
 	,
-	[enable_cms_sign="yes"]
+	[enable_cms_sign="no"]
 )
 
 AC_ARG_ENABLE(
 	[cms-verify],
-	[AS_HELP_STRING([--disable-cms-verify], [disable cms verify support])],
+	[AS_HELP_STRING([--enable-cms-verify], [enable cms verify support])],
 	,
-	[enable_cms_verify="yes"]
+	[enable_cms_verify="no"]
 )
 
 AC_ARG_ENABLE(
 	[cms-decrypt],
-	[AS_HELP_STRING([--disable-cms-decrypt], [disable cms decrypt support])],
+	[AS_HELP_STRING([--enable-cms-decrypt], [enable cms decrypt support])],
 	,
-	[enable_cms_decrypt="yes"]
+	[enable_cms_decrypt="no"]
 )
 
 AC_ARG_ENABLE(
 	[cms-encrypt],
-	[AS_HELP_STRING([--disable-cms-encrypt], [disable cms encrypt support])],
+	[AS_HELP_STRING([--enable-cms-encrypt], [enable cms encrypt support])],
 	,
-	[enable_cms_encrypt="yes"]
+	[enable_cms_encrypt="no"]
 )
 
 AC_ARG_ENABLE(
 	[io-driver-file],
-	[AS_HELP_STRING([--disable-io-driver-file], [disable io file driver support])],
+	[AS_HELP_STRING([--enable-io-driver-file], [enable io file driver support])],
 	,
-	[enable_io_driver_file="yes"]
+	[enable_io_driver_file="no"]
 )
 
 AC_ARG_ENABLE(
 	[certificate-driver-file],
-	[AS_HELP_STRING([--disable-certificate-driver-file], [disable certificate file driver support])],
+	[AS_HELP_STRING([--enable-certificate-driver-file], [enable certificate file driver support])],
 	,
-	[enable_certificate_driver_file="yes"]
+	[enable_certificate_driver_file="no"]
 )
 
 AC_ARG_ENABLE(
 	[certificate-driver-pkcs11],
-	[AS_HELP_STRING([--disable-certificate-driver-pkcs11], [disable certificate pkcs11 driver support])],
+	[AS_HELP_STRING([--enable-certificate-driver-pkcs11], [enable certificate PKCS@%:@11 driver support])],
 	,
-	[enable_certificate_driver_pkcs11="yes"]
+	[enable_certificate_driver_pkcs11="no"]
 )
 
 AC_PROG_CC
@@ -194,12 +201,24 @@ if test "${enable_certificate_driver_pkcs11}" = "yes"; then
 	AC_CHECK_LIB([dl], [dlopen])
 fi
 
-if test "${enable_tool}" = "yes" -a "${enable_io_driver_file}" != "yes"; then
+if test "${enable_tests}" = "yes"; then
+	test -z "${OPENSSL}" && \
+		AC_MSG_ERROR([openssl is required for test])
+	test -z "${EASYRSA}" && \
+		AC_MSG_ERROR([easyrsa is required for test])
+	test -z "${AWK}" && \
+		AC_MSG_ERROR([awk is required for easyrsa])
+	if test "${enable_certificate_driver_pkcs11}" = "yes"; then
+		test -z "${SOFTHSM2_UTIL}" &&
+			AC_MSG_ERROR([softhsm2 is required for PKCS@%:@11 tests])
+		test -z "${PKCS11_TOOL}" &&
+			AC_MSG_ERROR([pkcs11-tool (opensc) is required for PKCS@%:@11 tests])
+	fi
+fi
+test "${enable_tool}" = "yes" -a "${enable_io_driver_file}" != "yes" && \
 	AC_MSG_ERROR([IO file driver is required for tool])
-fi
-if test "${enable_all_static}" = "yes" -a "${enable_certificate_driver_pkcs11}" = "yes"; then
+test "${enable_all_static}" = "yes" -a "${enable_certificate_driver_pkcs11}" = "yes" && \
 	AC_MSG_ERROR([PKCS11 uses dynamic library])
-fi
 
 pkgconfigdir="\$(libdir)/pkgconfig"
 mycmsincludedir="\$(includedir)/mycms"
@@ -209,6 +228,7 @@ AC_SUBST([LIBMYCMS_LT_CURRENT])
 AC_SUBST([LIBMYCMS_LT_REVISION])
 AC_SUBST([LIBMYCMS_LT_AGE])
 AC_SUBST([LIBMYCMS_LT_OLDEST])
+AM_CONDITIONAL([ENABLE_TESTS], [test "${enable_tests}" = "yes"])
 AM_CONDITIONAL([ENABLE_TOOL], [test "${enable_tool}" = "yes"])
 AM_CONDITIONAL([ENABLE_CMS_SIGN], [test "${enable_cms_sign}" = "yes"])
 AM_CONDITIONAL([ENABLE_CMS_VERIFY], [test "${enable_cms_verify}" = "yes"])

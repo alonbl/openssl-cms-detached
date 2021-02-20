@@ -35,7 +35,7 @@ doval() {
 get_keyid() {
 	local cert="$1"
 
-	"${OPENSSL}" x509 -noout -in gen/test1.crt -inform DER -ext subjectKeyIdentifier |
+	"${OPENSSL}" x509 -noout -in "$1" -inform DER -ext subjectKeyIdentifier |
 		sed -e '1d' -e 's/ //g'
 }
 
@@ -64,9 +64,7 @@ test_sanity() {
 		--cms-in="${CMS}" \
 		)" || die "sanity.verify-list '${out}'"
 
-	keyid="$(get_keyid gen/test1.crt)" || die "test1.keyid"
-
-	[ "$(echo "${out}" | wc -l)" = 1 ] || die "Too many keys '${out}'"
+	[ "$(echo "${out}" | wc -l)" = 1 ] || die "Incorrect number of keys '${out}'"
 	echo "${out}" | grep -iq "^${test1_keyid}$" || die "Keyid mismatch expected '${test1_keyid}' actual '${out}'"
 
 	echo "Verify signature"
@@ -129,7 +127,7 @@ test_two() {
 		--cms-in="${CMS2}" \
 		)" || die "sanity.verify-list.test2 '${out}'"
 
-	[ "$(echo "${out}" | wc -l)" = 2 ] || die "Too many keys '${out}'"
+	[ "$(echo "${out}" | wc -l)" = 2 ] || die "Incorrect number of keys '${out}'"
 	echo "${out}" | grep -iq "^${test1_keyid}$" || die "Keyid mismatch expected '${test1_keyid}' actual '${out}'"
 	echo "${out}" | grep -iq "^${test2_keyid}$" || die "Keyid mismatch expected '${test2_keyid}' actual '${out}'"
 
@@ -198,7 +196,7 @@ test_multi_digest() {
 		--cms-in="${CMS2}" \
 		)" || die "sanity.verify-list.test2 '${out}'"
 
-	[ "$(echo "${out}" | wc -l)" = 4 ] || die "Too many keys '${out}'"
+	[ "$(echo "${out}" | wc -l)" = 4 ] || die "Incorrect number of keys '${out}'"
 	[ "$(echo "${out}" | grep -i "^${test1_keyid}$" | wc -l)" = 2 ] || die "Invalid number of signers test1 '${out}'"
 	[ "$(echo "${out}" | grep -i "^${test2_keyid}$" | wc -l)" = 2 ] || die "Invalid number of signers test1 '${out}'"
 

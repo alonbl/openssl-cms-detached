@@ -1,6 +1,23 @@
 AUTOMAKE_OPTIONS = foreign dist-bzip2 1.10
 ACLOCAL_AMFLAGS = -I m4 --install
 
+#@AM_DISTCHECK_CONFIGURE_FLAGS-BEGIN
+AM_DISTCHECK_CONFIGURE_FLAGS = \
+	--enable-certificate-driver-file \
+	--enable-certificate-driver-pkcs11 \
+	--enable-cms-decrypt \
+	--enable-cms-encrypt \
+	--enable-cms-sign \
+	--enable-cms-verify \
+	--enable-io-driver-file \
+	--enable-openssl-err-strings \
+	--enable-pedantic \
+	--enable-strict \
+	--enable-tests \
+	--enable-tool \
+	$(NULL)
+#@AM_DISTCHECK_CONFIGURE_FLAGS-END
+
 MAINTAINERCLEANFILES = \
 	config.log config.status \
 	$(srcdir)/Makefile.in \
@@ -21,8 +38,12 @@ EXTRA_DIST = \
 SUBDIRS = \
 	include \
 	src \
+	$(NULL)
+if ENABLE_TESTS
+SUBDIRS += \
 	test \
 	$(NULL)
+endif
 
 dist_doc_DATA = \
 	README.md \
