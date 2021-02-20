@@ -52,3 +52,7 @@ dist_doc_DATA = \
 dist_noinst_DATA = \
 	TODO.md \
 	$(NULL)
+
+dist_noinst_SCRIPTS = \
+	conf-dev.sh \
+	$(NULL)
