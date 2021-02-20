@@ -36,7 +36,7 @@ get_keyid() {
 	local cert="$1"
 
 	"${OPENSSL}" x509 -noout -in "$1" -inform DER -ext subjectKeyIdentifier |
-		sed -e '1d' -e 's/ //g'
+		sed -e '1d' -e 's/ //g' -e 's/://g'
 }
 
 test_sanity() {

@@ -500,7 +500,7 @@ static int __cmd_verify_list(int argc, char *argv[]) {
 	for (t = keyids; t != NULL; t = t->next) {
 		size_t i;
 		for (i = 0; i < t->blob.size; i++) {
-			printf("%s%02x", i == 0 ? "" : ":", t->blob.data[i]);
+			printf("%02x", t->blob.data[i]);
 		}
 		printf("\n");
 	}

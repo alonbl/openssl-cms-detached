@@ -5,6 +5,7 @@
 ### Dependencies
 
 * pkg-config complaint
+* libcrypto
 
 ### Test Dependencies
 
