@@ -26,6 +26,7 @@ TESTS_ENVIRONMENT = \
 	top_builddir="$(top_builddir)" \
 	MYCMS_TOOL="$(top_builddir)/src/tool/mycms-tool" \
 	SOFTHSM2_UTIL="$(SOFTHSM2_UTIL)" \
+	SOFTHSM2_MODULE="$(SOFTHSM2_MODULE)" \
 	PKCS11_TOOL="$(PKCS11_TOOL)" \
 	VALGRIND="$(VALGRIND)" \
 	LIBTOOL="$(LIBTOOL)" \

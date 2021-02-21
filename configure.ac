@@ -176,14 +176,26 @@ AC_TYPE_SIZE_T
 AC_PROG_AWK
 AC_ARG_VAR([PKCS11_TOOL], [path to pkcs11-tool utility])
 AC_PATH_PROGS([PKCS11_TOOL], [pkcs11-tool])
-AC_ARG_VAR([SOFTHSM2_UTIL], [path to softhsm2-util utility])
-AC_PATH_PROGS([SOFTHSM2_UTIL], [softhsm2-util])
 AC_ARG_VAR([VALGRIND], [path to valgrind utility])
 AC_PATH_PROGS([VALGRIND], [valgrind])
 AC_ARG_VAR([OPENSSL], [path to openssl utility])
 AC_PATH_PROGS([OPENSSL], [openssl])
 AC_ARG_VAR([EASYRSA], [path to easyrsa utility])
 AC_PATH_PROGS([EASYRSA], [easyrsa],, [/usr/share/easy-rsa])
+AC_ARG_VAR([SOFTHSM2_UTIL], [path to softhsm2-util utility])
+AC_PATH_PROGS([SOFTHSM2_UTIL], [softhsm2-util])
+AC_ARG_VAR([SOFTHSM2_MODULE], [path to SoftHSM2 module])
+
+AC_MSG_CHECKING([path to SoftHSM2 module])
+if test -z "${SOFTHSM2_MODULE}"; then
+	for x in /usr/lib*/softhsm/libsofthsm2.so /usr/lib*/*/softhsm/libsofthsm2.so; do
+		if test -r "${x}"; then
+			SOFTHSM2_MODULE="${x}"
+			break
+		fi
+	done
+fi
+AC_MSG_RESULT([${SOFTHSM2_MODULE}])
 
 test "${enable_all_static}" = "yes" && \
 	LDFLAGS="${LDFLAGS} -all-static"
@@ -211,6 +223,8 @@ if test "${enable_tests}" = "yes"; then
 	if test "${enable_certificate_driver_pkcs11}" = "yes"; then
 		test -z "${SOFTHSM2_UTIL}" &&
 			AC_MSG_ERROR([softhsm2 is required for PKCS@%:@11 tests])
+		test -z "${SOFTHSM2_MODULE}" &&
+			AC_MSG_ERROR([softhsm2 module is required for PKCS@%:@11 tests])
 		test -z "${PKCS11_TOOL}" &&
 			AC_MSG_ERROR([pkcs11-tool (opensc) is required for PKCS@%:@11 tests])
 	fi

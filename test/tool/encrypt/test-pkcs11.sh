@@ -25,6 +25,7 @@ MYTMP=
 cleanup() {
 	rm -fr "${MYTMP}"
 }
+trap cleanup 0
 
 doval() {
 	if [ "${DO_VALGRIND}" = 1 ]; then
@@ -38,7 +39,7 @@ prepare_token() {
 	"${SOFTHSM2_UTIL}" --init-token --free --label token1 --so-pin sosecret --pin secret || die "init-token"
 	for o in 1 2 3 4 5; do
 		"${PKCS11_TOOL}" \
-			--module "${MODULE}" \
+			--module "${SOFTHSM2_MODULE}" \
 			--token-label token1 \
 			--login \
 			--pin secret \
@@ -50,7 +51,7 @@ prepare_token() {
 			--write-object "gen/test${o}.key" \
 			|| die "pkcs11-tool.key.${o}"
 		"${PKCS11_TOOL}" \
-			--module "${MODULE}" \
+			--module "${SOFTHSM2_MODULE}" \
 			--token-label token1 \
 			--login \
 			--pin secret \
@@ -81,7 +82,7 @@ test_sanity() {
 	echo "Decrypting by test1"
 	doval "${MYCMS_TOOL}" decrypt \
 		--cms-in="${CMS}" \
-		--recip-cert="pkcs11:module=${MODULE}:token-label=token1:cert-label=test1" \
+		--recip-cert="pkcs11:module=${SOFTHSM2_MODULE}:token-label=token1:cert-label=test1" \
 		--recip-cert-pass="pass:secret" \
 		--data-pt="${OUTPT}" \
 		--data-ct="${CT}" \
@@ -113,7 +114,7 @@ test_add_recepients() {
 	doval "${MYCMS_TOOL}" encrypt-add \
 		--cms-in="${CMS1}" \
 		--cms-out="${CMS2}" \
-		--recip-cert="pkcs11:module=${MODULE}:token-label=token1:cert-label=test1" \
+		--recip-cert="pkcs11:module=${SOFTHSM2_MODULE}:token-label=token1:cert-label=test1" \
 		--recip-cert-pass="pass:secret" \
 		--to="gen/test3.crt" \
 		--to="gen/test4.crt" \
@@ -124,7 +125,7 @@ test_add_recepients() {
 		echo "Decrypting by '${x}'"
 		doval "${MYCMS_TOOL}" decrypt \
 			--cms-in="${CMS2}" \
-			--recip-cert="pkcs11:module=${MODULE}:token-label=token1:cert-label=${x}" \
+			--recip-cert="pkcs11:module=${SOFTHSM2_MODULE}:token-label=token1:cert-label=${x}" \
 			--recip-cert-pass="pass:secret" \
 			--data-pt="${OUTPT}-${x}" \
 			--data-ct="${CT}" \
@@ -145,13 +146,7 @@ echo "${features}" | grep -q "certificate-driver-pkcs11" || skip "certificate-dr
 "${SOFTHSM2_UTIL}" --version > /dev/null || skip "softhsm2-util not found"
 "${PKCS11_TOOL}" --version 2>&1 | grep -q "Usage:" || skip "pkcs11-tool not found"
 
-if [ -z "${MODULE}" ]; then
-	for MODULE in /usr/lib64/softhsm/libsofthsm2.so /usr/lib/softhsm/libsofthsm2.so; do
-		[ -r "${MODULE}" ] && break
-	done
-fi
-
-[ -z "${MODULE}" ] && die "Cannot find softhsm module"
+[ -z "${SOFTHSM2_MODULE}" ] && die "Cannot find softhsm module"
 
 MYTMP="$(mktemp -d)"
 PT="${MYTMP}/pt"

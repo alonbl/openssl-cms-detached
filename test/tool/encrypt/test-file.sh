@@ -23,6 +23,7 @@ MYTMP=
 cleanup() {
 	rm -fr "${MYTMP}"
 }
+trap cleanup 0
 
 doval() {
 	if [ "${DO_VALGRIND}" = 1 ]; then
