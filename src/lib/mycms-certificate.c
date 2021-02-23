@@ -85,6 +85,7 @@ static
 int
 passphrase_callback_default(
 	const mycms_certificate certificate __attribute__((unused)),
+	const char * const what __attribute__((unused)),
 	char **p,
 	const size_t size __attribute__((unused))
 ) {
@@ -652,6 +653,7 @@ cleanup:
 int
 mycms_certificate_aquire_passphrase(
 	const mycms_certificate certificate,
+	const char * const what,
 	char **p,
 	const size_t size
 ) {
@@ -665,7 +667,7 @@ mycms_certificate_aquire_passphrase(
 		goto cleanup;
 	}
 
-	ret = certificate->passphrase_callback(certificate, p, size);
+	ret = certificate->passphrase_callback(certificate, what, p, size);
 
 cleanup:
 

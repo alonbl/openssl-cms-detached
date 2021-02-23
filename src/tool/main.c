@@ -90,23 +90,24 @@ __extra_usage() {
 		const char *k;
 		const char *u;
 	} PASS_USAGE[] = {
-		{"pass:string", "read passphrase from string"},
-		{"env:key", "read the passphrase from environment"},
-		{"file:name", "read the passphrase from file"},
-		{"fd:n", "read the passphrase from file descriptor"},
+		{"pass=string", "read passphrase from string"},
+		{"env=key", "read the passphrase from environment"},
+		{"file=name", "read the passphrase from file"},
+		{"fd=n", "read the passphrase from file descriptor"},
 		{NULL, NULL}
 	};
 	const struct certificate_driver_s *sd;
 	const struct pass_s *pu;
 
-	printf("\nPASSPHRASE_EXPRESSION\n");
+	printf("\nPASSPHRASE_EXPRESSION\n%4swhat=attribute=value:what=attribute=value\n", "");
+	printf("%4sAttributes:\n", "");
 	for (pu = PASS_USAGE; pu->k != NULL; pu++) {
-		printf("%4s%-16s- %s\n", "", pu->k, pu->u);
+		printf("%8s%-16s- %s\n", "", pu->k, pu->u);
 	}
 
 	printf("\nCERTIFICATE_EXPRESSION\n%4sdriver:attribute=value:attribute=value\n", "");
 
-	printf("\n%4sAvailable certificate drivers:\n", "");
+	printf("\nCERTIFICATE DRIVERS\n");
 	for (sd = __CERTIFICATE_DRIVERS; sd->name != NULL; sd++) {
 		char x[1024];
 		char *p1;
@@ -115,7 +116,7 @@ __extra_usage() {
 		strncpy(x, sd->u(), sizeof(x) - 1);
 		x[sizeof(x) - 1] = '\0';
 
-		printf("%8s%s: attributes:\n", "", sd->name);
+		printf("%4s%s:\n", "", sd->name);
 		p1 = x;
 		while (p1 != NULL) {
 			if ((p2 = strchr(p1, '\n')) != NULL) {
@@ -186,17 +187,13 @@ static
 int
 __passphrase_callback(
 	const mycms_certificate certificate,
+	const char * const what,
 	char **p,
 	const size_t size
 ) {
-	char *exp = (char *)mycms_certificate_get_userdata(certificate);
-
-	if (exp == NULL) {
-		*p = NULL;
-		return 1;
-	} else {
-		return util_getpass(exp, *p, size);
-	}
+	mycms_dict pass_dict = (mycms_dict)mycms_certificate_get_userdata(certificate);
+	const char *exp = mycms_dict_entry_get(pass_dict, what, NULL);
+	return util_getpass(exp, *p, size);
 }
 
 #if defined(ENABLE_CMS_SIGN)
@@ -237,7 +234,8 @@ static int __cmd_sign(int argc, char *argv[]) {
 	mycms_io cms_in = NULL;
 	mycms_io cms_out = NULL;
 	mycms_io data_in = NULL;
-	mycms_dict dict = NULL;
+	mycms_dict certificate_dict = NULL;
+	mycms_dict pass_dict = NULL;
 	mycms_certificate certificate = NULL;
 	mycms_list_str digests = NULL;
 
@@ -261,6 +259,7 @@ static int __cmd_sign(int argc, char *argv[]) {
 		switch (option) {
 			case OPT_HELP:
 				getoptutil_usage(stdout, argv[0], "sign [options]", long_options);
+				__extra_usage();
 				ret = 0;
 				goto cleanup;
 			case OPT_DIGEST:
@@ -338,15 +337,27 @@ static int __cmd_sign(int argc, char *argv[]) {
 		digests->str = "SHA3-256";
 	}
 
-	if ((dict = mycms_dict_new(mycms)) == NULL) {
+	if ((certificate_dict = mycms_dict_new(mycms)) == NULL) {
 		goto cleanup;
 	}
 
-	if (!mycms_dict_construct(dict)) {
+	if (!mycms_dict_construct(certificate_dict)) {
 		goto cleanup;
 	}
 
-	if (!util_split_string(dict, certificate_exp)) {
+	if (!util_split_string(certificate_dict, certificate_exp)) {
+		goto cleanup;
+	}
+
+	if ((pass_dict = mycms_dict_new(mycms)) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_dict_construct(pass_dict)) {
+		goto cleanup;
+	}
+
+	if (!util_split_string(pass_dict, pass_exp)) {
 		goto cleanup;
 	}
 
@@ -358,7 +369,7 @@ static int __cmd_sign(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
-	if (!mycms_certificate_set_userdata(certificate, pass_exp)) {
+	if (!mycms_certificate_set_userdata(certificate, pass_dict)) {
 		goto cleanup;
 	}
 
@@ -376,7 +387,7 @@ static int __cmd_sign(int argc, char *argv[]) {
 		}
 	}
 
-	if (!mycms_certificate_load(certificate, dict)) {
+	if (!mycms_certificate_load(certificate, certificate_dict)) {
 		goto cleanup;
 	}
 
@@ -406,8 +417,11 @@ cleanup:
 	mycms_certificate_destruct(certificate);
 	certificate = NULL;
 
-	mycms_dict_destruct(dict);
-	dict = NULL;
+	mycms_dict_destruct(certificate_dict);
+	certificate_dict = NULL;
+
+	mycms_dict_destruct(pass_dict);
+	pass_dict = NULL;
 
 	mycms_destruct(mycms);
 	mycms = NULL;
@@ -465,6 +479,7 @@ static int __cmd_verify_list(int argc, char *argv[]) {
 		switch (option) {
 			case OPT_HELP:
 				getoptutil_usage(stdout, argv[0], "sign [options]", long_options);
+				__extra_usage();
 				ret = 0;
 				goto cleanup;
 			case OPT_CMS_IN:
@@ -572,6 +587,7 @@ static int __cmd_verify(int argc, char *argv[]) {
 		switch (option) {
 			case OPT_HELP:
 				getoptutil_usage(stdout, argv[0], "sign [options]", long_options);
+				__extra_usage();
 				ret = 0;
 				goto cleanup;
 			case OPT_CMS_IN:
@@ -725,6 +741,7 @@ static int __cmd_encrypt(int argc, char *argv[]) {
 		switch (option) {
 			case OPT_HELP:
 				getoptutil_usage(stdout, argv[0], "encrypt [options]", long_options);
+				__extra_usage();
 				ret = 0;
 				goto cleanup;
 			case OPT_CIPHER:
@@ -872,7 +889,8 @@ static int __cmd_encrypt_add(int argc, char *argv[]) {
 	mycms_io cms_in = NULL;
 	mycms_io cms_out = NULL;
 	mycms_list_blob to = NULL;
-	mycms_dict dict = NULL;
+	mycms_dict certificate_dict = NULL;
+	mycms_dict pass_dict = NULL;
 	mycms_certificate certificate = NULL;
 
 	if (!mycms_system_init(system, sizeof(_mycms_system))) {
@@ -974,15 +992,27 @@ static int __cmd_encrypt_add(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
-	if ((dict = mycms_dict_new(mycms)) == NULL) {
+	if ((certificate_dict = mycms_dict_new(mycms)) == NULL) {
 		goto cleanup;
 	}
 
-	if (!mycms_dict_construct(dict)) {
+	if (!mycms_dict_construct(certificate_dict)) {
 		goto cleanup;
 	}
 
-	if (!util_split_string(dict, certificate_exp)) {
+	if (!util_split_string(certificate_dict, certificate_exp)) {
+		goto cleanup;
+	}
+
+	if ((pass_dict = mycms_dict_new(mycms)) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_dict_construct(pass_dict)) {
+		goto cleanup;
+	}
+
+	if (!util_split_string(pass_dict, pass_exp)) {
 		goto cleanup;
 	}
 
@@ -990,7 +1020,7 @@ static int __cmd_encrypt_add(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
-	if (!mycms_certificate_set_userdata(certificate, pass_exp)) {
+	if (!mycms_certificate_set_userdata(certificate, pass_dict)) {
 		goto cleanup;
 	}
 
@@ -1008,7 +1038,7 @@ static int __cmd_encrypt_add(int argc, char *argv[]) {
 		}
 	}
 
-	if (!mycms_certificate_load(certificate, dict)) {
+	if (!mycms_certificate_load(certificate, certificate_dict)) {
 		goto cleanup;
 	}
 
@@ -1029,8 +1059,11 @@ cleanup:
 	mycms_certificate_destruct(certificate);
 	certificate = NULL;
 
-	mycms_dict_destruct(dict);
-	dict = NULL;
+	mycms_dict_destruct(certificate_dict);
+	certificate_dict = NULL;
+
+	mycms_dict_destruct(pass_dict);
+	pass_dict = NULL;
 
 	while(to != NULL) {
 		mycms_list_blob t = to;
@@ -1087,7 +1120,8 @@ static int __cmd_decrypt(int argc, char *argv[]) {
 	mycms_io cms_in = NULL;
 	mycms_io data_pt = NULL;
 	mycms_io data_ct = NULL;
-	mycms_dict dict = NULL;
+	mycms_dict certificate_dict = NULL;
+	mycms_dict pass_dict = NULL;
 	mycms_certificate certificate = NULL;
 
 	if (!mycms_system_init(system, sizeof(_mycms_system))) {
@@ -1180,15 +1214,27 @@ static int __cmd_decrypt(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
-	if ((dict = mycms_dict_new(mycms)) == NULL) {
+	if ((certificate_dict = mycms_dict_new(mycms)) == NULL) {
 		goto cleanup;
 	}
 
-	if (!mycms_dict_construct(dict)) {
+	if (!mycms_dict_construct(certificate_dict)) {
 		goto cleanup;
 	}
 
-	if (!util_split_string(dict, certificate_exp)) {
+	if (!util_split_string(certificate_dict, certificate_exp)) {
+		goto cleanup;
+	}
+
+	if ((pass_dict = mycms_dict_new(mycms)) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_dict_construct(pass_dict)) {
+		goto cleanup;
+	}
+
+	if (!util_split_string(pass_dict, pass_exp)) {
 		goto cleanup;
 	}
 
@@ -1200,7 +1246,7 @@ static int __cmd_decrypt(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
-	if (!mycms_certificate_set_userdata(certificate, pass_exp)) {
+	if (!mycms_certificate_set_userdata(certificate, pass_dict)) {
 		goto cleanup;
 	}
 
@@ -1218,7 +1264,7 @@ static int __cmd_decrypt(int argc, char *argv[]) {
 		}
 	}
 
-	if (!mycms_certificate_load(certificate, dict)) {
+	if (!mycms_certificate_load(certificate, certificate_dict)) {
 		goto cleanup;
 	}
 
@@ -1242,8 +1288,11 @@ cleanup:
 	mycms_certificate_destruct(certificate);
 	certificate = NULL;
 
-	mycms_dict_destruct(dict);
-	dict = NULL;
+	mycms_dict_destruct(certificate_dict);
+	certificate_dict = NULL;
+
+	mycms_dict_destruct(pass_dict);
+	pass_dict = NULL;
 
 	mycms_destruct(mycms);
 	mycms = NULL;

@@ -32,6 +32,9 @@ struct __mycms_certificate_driver_pkcs11_s {
 	struct __pkcs11_provider_s *p;
 	CK_SESSION_HANDLE session_handle;
 	CK_OBJECT_HANDLE key_handle;
+	int protected_auth;
+	int login_required;
+	int always_authenticate;
 };
 typedef struct __mycms_certificate_driver_pkcs11_s *__mycms_certificate_driver_pkcs11;
 
@@ -219,9 +222,93 @@ cleanup:
 
 static
 CK_RV
+__common_login(
+	const mycms_certificate certificate,
+	const CK_USER_TYPE user,
+	const char * const what
+) {
+	mycms_system system = NULL;
+	__mycms_certificate_driver_pkcs11 certificate_pkcs11 = NULL;
+
+	char pin[512];
+	char *p;
+	CK_RV rv = CKR_FUNCTION_FAILED;
+
+	if ((system = mycms_certificate_get_system(certificate)) == NULL) {
+		goto cleanup;
+	}
+
+	if ((certificate_pkcs11 = (__mycms_certificate_driver_pkcs11)mycms_certificate_get_driverdata(certificate)) == NULL) {
+		goto cleanup;
+	}
+
+	if (certificate_pkcs11->protected_auth) {
+		if ((rv = certificate_pkcs11->p->f->C_Login (
+			certificate_pkcs11->session_handle,
+			user,
+			NULL_PTR,
+			0
+		)) != CKR_OK && rv != CKR_USER_ALREADY_LOGGED_IN) {
+			goto cleanup;
+		}
+	} else {
+		p = pin;
+		if (!mycms_certificate_aquire_passphrase(certificate, what, &p, sizeof(pin))) {
+			goto cleanup;
+		}
+
+		if ((rv = certificate_pkcs11->p->f->C_Login (
+			certificate_pkcs11->session_handle,
+			user,
+			(CK_UTF8CHAR_PTR)p,
+			p == NULL ? 0 : strlen(p)
+		)) != CKR_OK && rv != CKR_USER_ALREADY_LOGGED_IN) {
+			goto cleanup;
+		}
+	}
+
+	rv = CKR_OK;
+
+cleanup:
+	mycms_system_cleanse(system, pin, sizeof(pin));
+
+	return rv;
+}
+
+static
+CK_RV
+__context_login(
+	const mycms_certificate certificate
+) {
+	__mycms_certificate_driver_pkcs11 certificate_pkcs11 = NULL;
+
+	char pin[512];
+	char *p;
+	CK_RV rv = CKR_FUNCTION_FAILED;
+
+
+	if ((certificate_pkcs11 = (__mycms_certificate_driver_pkcs11)mycms_certificate_get_driverdata(certificate)) == NULL) {
+		goto cleanup;
+	}
+
+	if (certificate_pkcs11->always_authenticate) {
+		if ((rv = __common_login(certificate, CKU_CONTEXT_SPECIFIC, "key")) != CKR_OK) {
+			goto cleanup;
+		}
+	}
+
+	rv = CKR_OK;
+
+cleanup:
+
+	return rv;
+}
+
+static
+CK_RV
 __get_object_attributes(
 	const mycms_system system,
-	__mycms_certificate_driver_pkcs11 certificate_pkcs11,
+	const __mycms_certificate_driver_pkcs11 certificate_pkcs11,
 	const CK_OBJECT_HANDLE object,
 	const CK_ATTRIBUTE_PTR attrs,
 	const unsigned count
@@ -357,6 +444,7 @@ __driver_rsa_private_op(
 	const size_t to_size,
 	const int padding
 ) {
+	mycms_system system = NULL;
 	__mycms_certificate_driver_pkcs11 certificate_pkcs11 = NULL;
 
 	CK_MECHANISM mech = {
@@ -365,6 +453,10 @@ __driver_rsa_private_op(
 	CK_ULONG size;
 	CK_RV rv = CKR_FUNCTION_FAILED;
 	int ret = -1;
+
+	if ((system = mycms_certificate_get_system(certificate)) == NULL) {
+		goto cleanup;
+	}
 
 	if ((certificate_pkcs11 = (__mycms_certificate_driver_pkcs11)mycms_certificate_get_driverdata(certificate)) == NULL) {
 		goto cleanup;
@@ -399,6 +491,9 @@ __driver_rsa_private_op(
 			)) != CKR_OK) {
 				goto cleanup;
 			}
+			if ((rv = __context_login(certificate)) != CKR_OK) {
+				goto cleanup;
+			}
 			size = to_size;
 			if ((rv = certificate_pkcs11->p->f->C_Sign (
 				certificate_pkcs11->session_handle,
@@ -416,6 +511,9 @@ __driver_rsa_private_op(
 				&mech,
 				certificate_pkcs11->key_handle
 			)) != CKR_OK) {
+				goto cleanup;
+			}
+			if ((rv = __context_login(certificate)) != CKR_OK) {
 				goto cleanup;
 			}
 			size = to_size;
@@ -496,9 +594,6 @@ __driver_load(
 	const char *tokenlabel = NULL;
 	const char *certlabel = NULL;
 
-	char pin[512];
-	char *p;
-
 	int ret = 0;
 	int found = 0;
 
@@ -507,6 +602,9 @@ __driver_load(
 	CK_ATTRIBUTE cert_attrs[] = {
 		{CKA_ID, NULL, 0},
 		{CKA_VALUE, NULL, 0}
+	};
+	CK_ATTRIBUTE key_attrs[] = {
+		{CKA_ALWAYS_AUTHENTICATE, NULL, 0}
 	};
 
 	if (certificate == NULL) {
@@ -591,6 +689,8 @@ __driver_load(
 			__fixup_fixed_string(label, (char *)info.label, sizeof(info.label));
 			if (!strcmp(label, tokenlabel)) {
 				found = 1;
+				certificate_pkcs11->protected_auth = (info.flags & CKF_PROTECTED_AUTHENTICATION_PATH) ? 1 : 0;
+				certificate_pkcs11->login_required = (info.flags & CKF_LOGIN_REQUIRED) ? 1 : 0;
 				break;
 			}
 		}
@@ -611,18 +711,10 @@ __driver_load(
 		goto cleanup;
 	}
 
-	p = pin;
-	if (!mycms_certificate_aquire_passphrase(certificate, &p, sizeof(pin))) {
-		goto cleanup;
-	}
-
-	if ((rv = certificate_pkcs11->p->f->C_Login (
-		certificate_pkcs11->session_handle,
-		CKU_USER,
-		(CK_UTF8CHAR_PTR)p,
-		p == NULL ? 0 : strlen(p)
-	)) != CKR_OK && rv != CKR_USER_ALREADY_LOGGED_IN) {
-		goto cleanup;
+	if (certificate_pkcs11->login_required) {
+		if ((rv = __common_login(certificate, CKU_USER, "token")) != CKR_OK) {
+			goto cleanup;
+		}
 	}
 
 	{
@@ -683,18 +775,31 @@ __driver_load(
 		if (certificate_pkcs11->key_handle == __INVALID_OBJECT_HANDLE) {
 			goto cleanup;
 		}
+
+		if ((rv = __get_object_attributes(
+			system,
+			certificate_pkcs11,
+			certificate_pkcs11->key_handle,
+			key_attrs,
+			sizeof(key_attrs) / sizeof(*key_attrs)
+		)) == CKR_OK) {
+			certificate_pkcs11->always_authenticate = *(CK_BBOOL *)key_attrs[0].pValue != 0;
+		}
 	}
 
 	ret = 1;
 
 cleanup:
 
-	mycms_system_cleanse(system, pin, sizeof(pin));
-
 	__free_attributes(
 		system,
 		cert_attrs,
 		sizeof(cert_attrs) / sizeof(*cert_attrs)
+	);
+	__free_attributes(
+		system,
+		key_attrs,
+		sizeof(key_attrs) / sizeof(*key_attrs)
 	);
 
 	mycms_system_free(system, slots);
@@ -706,10 +811,15 @@ cleanup:
 const char *
 mycms_certificate_driver_pkcs11_usage(void) {
 	return (
+		"CERTIFICATE EXPRESSION ATTRIBUTES\n"
 		"module: PKCS#11 module to load\n"
 		"token-label: token label\n"
 		"cert-label: certificate label\n"
 		"init-reserved: reserved C_Initialize argument\n"
+		"\n"
+		"PASSPHRASE EXPRESSION WHAT\n"
+		"token: token passphrase\n"
+		"key: key passphrase\n"
 	);
 }
 

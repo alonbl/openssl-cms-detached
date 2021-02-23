@@ -26,7 +26,7 @@ cleanup() {
 trap cleanup 0
 
 doval() {
-	if [ "${DO_VALGRIND}" = 1 ]; then
+	if [ "${MYCMS_DO_VALGRIND}" = 1 ]; then
 		${VALGRIND_CMD} -q --leak-check=full --leak-resolution=high --show-leak-kinds=all "$@"
 	else
 		"$@"

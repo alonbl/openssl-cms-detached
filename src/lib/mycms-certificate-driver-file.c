@@ -277,6 +277,7 @@ cleanup:
 const char *
 mycms_certificate_driver_file_usage(void) {
 	return (
+		"CERTIFICATE EXPRESSION ATTRIBUTES\n"
 		"cert: DER encoded certificate file\n"
 		"key: DER encoded PKCS#8 file\n"
 	);

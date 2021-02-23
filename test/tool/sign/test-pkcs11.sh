@@ -28,8 +28,15 @@ cleanup() {
 trap cleanup 0
 
 doval() {
-	if [ "${DO_VALGRIND}" = 1 ]; then
-		${VALGRIND_CMD} -q --leak-check=full --leak-resolution=high --show-leak-kinds=all --suppressions="${srcdir}/test-pkcs11.valgrind.supp" --gen-suppressions=all "$@"
+	if [ "${MYCMS_DO_VALGRIND}" = 1 ]; then
+		${VALGRIND_CMD} \
+			-q \
+			--leak-check=full \
+			--leak-resolution=high \
+			--show-leak-kinds=all \
+			--suppressions="${srcdir}/test-pkcs11.valgrind.supp" \
+			--gen-suppressions=all \
+			"$@"
 	else
 		"$@"
 	fi
@@ -45,6 +52,28 @@ get_keyid() {
 prepare_token() {
 	"${SOFTHSM2_UTIL}" --init-token --free --label token1 --so-pin sosecret --pin secret || die "init-token"
 	for o in 1 2 3; do
+if [ -n "${__MYCMS_USE_CERTUTIL}" ]; then
+		local k="${MYTMP}/k"
+		local c="${MYTMP}/c"
+		openssl pkcs8 -topk8 -inform DER -in "gen/test${o}.key" -out "${k}" -nocrypt || die "openssl.p8"
+		openssl x509 -inform DER -in "gen/test${o}.crt" -out "${c}" || die "openssl.crt"
+		"${SOFTHSM2_UTIL}" \
+			--import "${MYTMP}/k" \
+			--import-type=keypair \
+			--token token1 \
+			--id $(printf "%02x" ${o}) \
+			--label test${o} \
+			--pin secret \
+			|| die "softhsm.import.key.${o}"
+		"${SOFTHSM2_UTIL}" \
+			--import "${MYTMP}/c" \
+			--import-type=cert \
+			--token token1 \
+			--id $(printf "%02x" ${o}) \
+			--label test${o} \
+			--pin secret \
+			|| die "softhsm.import.cert.${o}"
+else
 		"${PKCS11_TOOL}" \
 			--module "${SOFTHSM2_MODULE}" \
 			--token-label token1 \
@@ -67,10 +96,8 @@ prepare_token() {
 			--type cert \
 			--write-object "gen/test${o}.crt" \
 			|| die "pkcs11-tool.crt.${o}"
+fi
 	done
-
-	echo "Token:"
-	"${SOFTHSM2_UTIL}" --show-slots
 }
 
 test_sanity() {
@@ -91,7 +118,7 @@ test_sanity() {
 		--cms-out="${CMS}" \
 		--data-in="${DATA}" \
 		--signer-cert="pkcs11:module=${SOFTHSM2_MODULE}:token-label=token1:cert-label=test1" \
-		--signer-cert-pass="pass:secret" \
+		--signer-cert-pass="token=pass=secret" \
 		|| die "sanity.sign.test1"
 
 	echo "List signers test1"

@@ -10,6 +10,12 @@ util_getpass(
 	const size_t size
 );
 
+char *
+util_strchr_escape(
+	const char * const s,
+	const char c
+);
+
 int
 util_split_string(
 	const mycms_dict dict,

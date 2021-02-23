@@ -40,6 +40,7 @@ typedef int (*mycms_certificate_driver_rsa_private_op)(
 
 typedef int (*mycms_certificate_passphrase_callback)(
 	const mycms_certificate certificate,
+	const char * const what,
 	char **p,
 	const size_t size
 );
@@ -130,6 +131,7 @@ mycms_certificate_load(
 int
 mycms_certificate_aquire_passphrase(
 	const mycms_certificate certificate,
+	const char * const what,
 	char **p,
 	const size_t size
 );
