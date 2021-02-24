@@ -7,6 +7,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "pinentry.h"
 #include "util.h"
 
 static
@@ -25,6 +26,8 @@ __chop(const char *s) {
 
 int
 util_getpass(
+	const char * const title,
+	const char * const prompt,
 	const char * const exp,
 	char * const pass,
 	const size_t size
@@ -33,6 +36,7 @@ util_getpass(
 	static const char PASS_ENV[] = "env=";
 	static const char PASS_FILE[] = "file=";
 	static const char PASS_FD[] = "fd=";
+	static const char PASS_PINENTRY[] = "pinentry=";
 
 	int ret = 0;
 
@@ -79,6 +83,12 @@ util_getpass(
 
 		pass[s] = '\0';
 		__chop(pass);
+	} else if (!strncmp(exp, PASS_PINENTRY, sizeof(PASS_PINENTRY)-1)) {
+		const char *p = exp + strlen(PASS_PINENTRY);
+
+		if (!pinentry_exec(p, title, prompt, pass, size)) {
+			goto cleanup;
+		}
 	} else {
 		goto cleanup;
 	}
@@ -160,4 +170,3 @@ cleanup:
 
 	return ret;
 }
-

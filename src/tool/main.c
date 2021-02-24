@@ -94,6 +94,7 @@ __extra_usage() {
 		{"env=key", "read the passphrase from environment"},
 		{"file=name", "read the passphrase from file"},
 		{"fd=n", "read the passphrase from file descriptor"},
+		{"pinentry=/path/to/program", "read the passphrase from gpg pinentry"},
 		{NULL, NULL}
 	};
 	const struct certificate_driver_s *sd;
@@ -193,7 +194,10 @@ __passphrase_callback(
 ) {
 	mycms_dict pass_dict = (mycms_dict)mycms_certificate_get_userdata(certificate);
 	const char *exp = mycms_dict_entry_get(pass_dict, what, NULL);
-	return util_getpass(exp, *p, size);
+	char prompt[1024];
+	snprintf(prompt, sizeof(prompt), "%s PIN", what);
+	prompt[sizeof(prompt)-1] = '\0';
+	return util_getpass("MyCMS", prompt, exp, *p, size);
 }
 
 #if defined(ENABLE_CMS_SIGN)

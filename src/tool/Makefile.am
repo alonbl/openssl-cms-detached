@@ -14,6 +14,8 @@ mycms_tool_SOURCES = \
 	getoptutil.c \
 	getoptutil.h \
 	main.c \
+	pinentry.c \
+	pinentry.h \
 	util.c \
 	util.h \
 	$(NULL)

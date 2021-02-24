@@ -5,6 +5,8 @@
 
 int
 util_getpass(
+	const char * const title,
+	const char * const prompt,
 	const char * const exp,
 	char * const pass,
 	const size_t size
