@@ -2,9 +2,16 @@
 #include <config.h>
 #endif
 
-#include <dlfcn.h>
+#ifdef BUILD_WINDOWS
+#include <windows.h>
+#endif
+
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef HAVE_DLFCN_H
+#include <dlfcn.h>
+#endif
 
 #include <openssl/evp.h>
 #include <openssl/x509.h>
@@ -21,7 +28,11 @@
 struct __pkcs11_provider_s {
 	char *name;
 	int reference_count;
+#ifdef BUILD_WINDOWS
+	HANDLE module_handle;
+#else
 	void *module_handle;
+#endif
 	int should_finalize;
 	CK_FUNCTION_LIST_PTR f;
 };
@@ -265,7 +276,11 @@ __unload_provider(
 			}
 			t->entry.f = NULL;
 			if (t->entry.module_handle != NULL) {
+#if BUILD_WINDOWS
+				FreeLibrary(t->entry.module_handle);
+#else
 				dlclose(t->entry.module_handle);
+#endif
 				t->entry.module_handle = NULL;
 			}
 			mycms_system_free(system, t->entry.name);
@@ -293,7 +308,6 @@ __load_provider(
 	CK_C_GetFunctionList gfl = NULL;
 	CK_C_INITIALIZE_ARGS initargs;
 	CK_C_INITIALIZE_ARGS_PTR pinitargs = NULL;
-	void *p;
 	CK_RV rv;
 	struct __pkcs11_provider_s *ret = NULL;
 
@@ -325,18 +339,42 @@ __load_provider(
 		pkcs11_provider->next = (mycms_list_pkcs11_provider)_mycms_get_pkcs11_state(mycms_certificate_get_mycms(certificate));
 		_mycms_set_pkcs11_state(mycms_certificate_get_mycms(certificate), pkcs11_provider);
 
+#ifdef BUILD_WINDOWS
+		if ((pkcs11_provider->entry.module_handle = LoadLibraryA(module)) == NULL) {
+			goto cleanup;
+		}
+
+		{
+			FARPROC p;
+
+			/*
+			 * Make compiler happy!
+			 */
+			p = GetProcAddress(
+				pkcs11_provider->entry.module_handle,
+				"C_GetFunctionList"
+			);
+
+			memmove(&gfl, &p, sizeof(gfl));
+		}
+#else
 		if ((pkcs11_provider->entry.module_handle = dlopen(module, RTLD_NOW | RTLD_LOCAL)) == NULL) {
 			goto cleanup;
 		}
 
-		/*
-		 * Make compiler happy!
-		 */
-		p = dlsym(
-			pkcs11_provider->entry.module_handle,
-			"C_GetFunctionList"
-		);
-		memmove(&gfl, &p, sizeof(gfl));
+		{
+			void *p;
+
+			/*
+			 * Make compiler happy!
+			 */
+			p = dlsym(
+				pkcs11_provider->entry.module_handle,
+				"C_GetFunctionList"
+			);
+			memmove(&gfl, &p, sizeof(gfl));
+		}
+#endif
 
 		if (gfl == NULL) {
 			goto cleanup;

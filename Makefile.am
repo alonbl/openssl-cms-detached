@@ -38,6 +38,7 @@ EXTRA_DIST = \
 SUBDIRS = \
 	include \
 	src \
+	windows \
 	$(NULL)
 if ENABLE_TESTS
 SUBDIRS += \

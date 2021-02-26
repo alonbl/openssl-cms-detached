@@ -86,25 +86,11 @@ cleanup:
 static
 void
 __extra_usage() {
-	static const struct pass_s {
-		const char *k;
-		const char *u;
-	} PASS_USAGE[] = {
-		{"pass=string", "read passphrase from string"},
-		{"env=key", "read the passphrase from environment"},
-		{"file=name", "read the passphrase from file"},
-		{"fd=n", "read the passphrase from file descriptor"},
-		{"pinentry=/path/to/program", "read the passphrase from gpg pinentry"},
-		{NULL, NULL}
-	};
 	const struct certificate_driver_s *sd;
-	const struct pass_s *pu;
 
 	printf("\nPASSPHRASE_EXPRESSION\n%4swhat=attribute=value:what=attribute=value\n", "");
 	printf("%4sAttributes:\n", "");
-	for (pu = PASS_USAGE; pu->k != NULL; pu++) {
-		printf("%8s%-16s- %s\n", "", pu->k, pu->u);
-	}
+	util_getpass_usage(stdout, "        ");
 
 	printf("\nCERTIFICATE_EXPRESSION\n%4sdriver:attribute=value:attribute=value\n", "");
 

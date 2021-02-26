@@ -1,3 +1,5 @@
+include $(top_srcdir)/windows/ltrc.inc
+
 MAINTAINERCLEANFILES = \
 	$(srcdir)/Makefile.in \
 	$(NULL)
@@ -19,6 +21,13 @@ mycms_tool_SOURCES = \
 	util.c \
 	util.h \
 	$(NULL)
+nodist_mycms_tool_SOURCES = \
+	$(NULL)
+if BUILD_WINDOWS
+nodist_mycms_tool_SOURCES += \
+	versioninfo.rc \
+	$(NULL)
+endif
 mycms_tool_LDADD = \
 	$(builddir)/../lib/libmycms.la \
 	$(NULL)

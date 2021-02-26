@@ -1,3 +1,5 @@
+include $(top_srcdir)/windows/ltrc.inc
+
 MAINTAINERCLEANFILES = \
 	$(srcdir)/Makefile.in \
 	$(NULL)
@@ -50,6 +52,13 @@ libmycms_la_SOURCES = \
 	mycms-system.c \
 	mycms.c \
 	$(NULL)
+nodist_libmycms_la_SOURCES = \
+	$(NULL)
+if BUILD_WINDOWS
+nodist_libmycms_la_SOURCES += \
+	versioninfo.rc \
+	$(NULL)
+endif
 if ENABLE_CMS_SIGN
 libmycms_la_SOURCES += \
 	mycms-core-sign.c \

@@ -3,8 +3,6 @@
 
 #include <stdlib.h>
 
-#include <openssl/bio.h>
-
 #include "mycms-certificate.h"
 #include "mycms-io.h"
 #include "mycms-list.h"

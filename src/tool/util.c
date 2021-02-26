@@ -5,7 +5,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifndef BUILD_WINDOWS
 #include <unistd.h>
+#endif
 
 #include "pinentry.h"
 #include "util.h"
@@ -24,6 +27,31 @@ __chop(const char *s) {
 	}
 }
 
+void
+util_getpass_usage(
+	FILE *fp,
+	const char * const prefix
+) {
+	static const struct pass_s {
+		const char *k;
+		const char *u;
+	} PASS_USAGE[] = {
+		{"pass=string", "read passphrase from string"},
+		{"env=key", "read the passphrase from environment"},
+		{"file=name", "read the passphrase from file"},
+#ifndef BUILD_WINDOWS
+		{"fd=n", "read the passphrase from file descriptor"},
+#endif
+		{"pinentry=/path/to/program", "read the passphrase from gpg pinentry"},
+		{NULL, NULL}
+	};
+	const struct pass_s *pu;
+
+	for (pu = PASS_USAGE; pu->k != NULL; pu++) {
+		fprintf(fp, "%s%-16s- %s\n", prefix, pu->k, pu->u);
+	}
+}
+
 int
 util_getpass(
 	const char * const title,
@@ -35,8 +63,10 @@ util_getpass(
 	static const char PASS_PASS[] = "pass=";
 	static const char PASS_ENV[] = "env=";
 	static const char PASS_FILE[] = "file=";
-	static const char PASS_FD[] = "fd=";
 	static const char PASS_PINENTRY[] = "pinentry=";
+#ifndef BUILD_WINDOWS
+	static const char PASS_FD[] = "fd=";
+#endif
 
 	int ret = 0;
 
@@ -72,6 +102,7 @@ util_getpass(
 			pass[size-1] = '\0';
 			__chop(pass);
 		}
+#ifndef BUILD_WINDOWS
 	} else if (!strncmp(exp, PASS_FD, sizeof(PASS_FD)-1)) {
 		const char *p = exp + strlen(PASS_FD);
 		int fd = atoi(p);
@@ -83,6 +114,7 @@ util_getpass(
 
 		pass[s] = '\0';
 		__chop(pass);
+#endif
 	} else if (!strncmp(exp, PASS_PINENTRY, sizeof(PASS_PINENTRY)-1)) {
 		const char *p = exp + strlen(PASS_PINENTRY);
 

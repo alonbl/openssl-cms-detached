@@ -3,6 +3,12 @@
 
 #include  <mycms/mycms-dict.h>
 
+void
+util_getpass_usage(
+	FILE *fp,
+	const char * const prefix
+);
+
 int
 util_getpass(
 	const char * const title,

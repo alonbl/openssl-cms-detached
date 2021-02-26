@@ -3,9 +3,10 @@ AC_PREREQ(2.60)
 define([PACKAGE_VERSION_MAJOR], [0])
 define([PACKAGE_VERSION_MINOR], [0])
 define([PACKAGE_VERSION_FIX], [0])
+define([PACKAGE_VERSION_REVISION], [0])
 define([PACKAGE_SUFFIX], [_master])
 
-AC_INIT([mycms],[PACKAGE_VERSION_MAJOR.PACKAGE_VERSION_MINOR.PACKAGE_VERSION_FIX[]PACKAGE_SUFFIX])
+AC_INIT([mycms], [PACKAGE_VERSION_MAJOR.PACKAGE_VERSION_MINOR.PACKAGE_VERSION_FIX[]PACKAGE_SUFFIX])
 AC_CONFIG_AUX_DIR([.])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIRS([m4])
@@ -13,12 +14,14 @@ AC_CONFIG_SRCDIR([include/mycms/mycms.h])
 AM_INIT_AUTOMAKE
 
 MYCMS_VERSION_MAJOR="PACKAGE_VERSION_MAJOR"
-MYCMS_VERSION_MINOR="$(echo PACKAGE_VERSION_MINOR | sed 's/^0*//')"
+MYCMS_VERSION_MINOR="PACKAGE_VERSION_MINOR"
 MYCMS_VERSION_FIX="PACKAGE_VERSION_FIX"
+MYCMS_VERSION_REVISION="PACKAGE_VERSION_REVISION"
 
 AC_SUBST([MYCMS_VERSION_MAJOR])
 AC_SUBST([MYCMS_VERSION_MINOR])
 AC_SUBST([MYCMS_VERSION_FIX])
+AC_SUBST([MYCMS_VERSION_REVISION])
 
 LIBMYCMS_LT_CURRENT="1"
 LIBMYCMS_LT_OLDEST="1"
@@ -121,7 +124,8 @@ AC_ARG_ENABLE(
 AC_PROG_CC
 AC_PROG_INSTALL
 PKG_PROG_PKG_CONFIG
-LT_INIT
+LT_INIT([win32-dll])
+LT_LANG([Windows Resource])
 
 if test "${enable_all_static}" = "yes"; then
 	ifdef(
@@ -173,6 +177,24 @@ AC_C_INLINE
 AC_C_VOLATILE
 AC_TYPE_SIZE_T
 
+AC_CHECK_LIB([dl], [dlopen], [LIBDL_LIBS="-ldl"])
+
+AC_CHECK_HEADERS([ \
+	dnfcn.h \
+])
+
+AC_CHECK_FUNCS([ \
+	explicit_bzero \
+])
+
+case "${host}" in
+	*-mingw*)
+		BUILD_WINDOWS=yes
+		AC_DEFINE([BUILD_WINDOWS], [1], [Build windows])
+		AC_DEFINE([HAVE_SECUREZEROMEMORY], [1], [Have SecureZeroMemory])
+		;;
+esac
+
 AC_PROG_AWK
 AC_ARG_VAR([PKCS11_TOOL], [path to pkcs11-tool utility])
 AC_PATH_PROGS([PKCS11_TOOL], [pkcs11-tool])
@@ -210,7 +232,7 @@ test "${enable_io_driver_file}" = "yes" && AC_DEFINE([ENABLE_IO_DRIVER_FILE], [1
 test "${enable_certificate_driver_file}" = "yes" && AC_DEFINE([ENABLE_CERTIFICATE_DRIVER_FILE], [1], [Enable cms certificate file driver])
 if test "${enable_certificate_driver_pkcs11}" = "yes"; then
 	AC_DEFINE([ENABLE_CERTIFICATE_DRIVER_PKCS11], [1], [Enable cms pkcs11 file driver])
-	AC_CHECK_LIB([dl], [dlopen])
+	LIBS="${LIBS} ${LIBDL_LIBS}"
 fi
 
 if test "${enable_tests}" = "yes"; then
@@ -242,6 +264,7 @@ AC_SUBST([LIBMYCMS_LT_CURRENT])
 AC_SUBST([LIBMYCMS_LT_REVISION])
 AC_SUBST([LIBMYCMS_LT_AGE])
 AC_SUBST([LIBMYCMS_LT_OLDEST])
+AM_CONDITIONAL([BUILD_WINDOWS], [test "${BUILD_WINDOWS}" = "yes"])
 AM_CONDITIONAL([ENABLE_TESTS], [test "${enable_tests}" = "yes"])
 AM_CONDITIONAL([ENABLE_TOOL], [test "${enable_tool}" = "yes"])
 AM_CONDITIONAL([ENABLE_CMS_SIGN], [test "${enable_cms_sign}" = "yes"])
@@ -258,7 +281,9 @@ AC_CONFIG_FILES([
 	src/Makefile
 	src/lib/Makefile
 	src/lib/libmycms.pc
+	src/lib/versioninfo.rc
 	src/tool/Makefile
+	src/tool/versioninfo.rc
 	test/Makefile
 	test/ca/Makefile
 	test/ca/rootca.vars
@@ -267,5 +292,6 @@ AC_CONFIG_FILES([
 	test/tool/Makefile
 	test/tool/encrypt/Makefile
 	test/tool/sign/Makefile
+	windows/Makefile
 ])
 AC_OUTPUT

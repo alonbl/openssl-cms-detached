@@ -54,3 +54,4 @@ test/ca/rootca.vars
 test/ca/subca.pki
 test/ca/subca.vars
 test/ca/vars
+versioninfo.rc

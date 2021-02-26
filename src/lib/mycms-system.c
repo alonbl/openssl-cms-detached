@@ -2,6 +2,10 @@
 #include <config.h>
 #endif
 
+#ifdef BUILD_WINDOWS
+#include <windows.h>
+#endif
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -22,7 +26,13 @@ __driver_cleanse_default(
 	void * const p,
 	const size_t size
 ) {
+#if defined(HAVE_EXPLICIT_BZERO)
 	explicit_bzero(p, size);
+#elif defined(HAVE_SECUREZEROMEMORY)
+	SecureZeroMemory(p, size);
+#else
+	memset(p, 0, size);
+#endif
 	return 1;
 }
 
