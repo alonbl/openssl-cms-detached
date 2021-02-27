@@ -5,15 +5,22 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <mycms/mycms.h>
 #include <mycms/mycms-certificate-driver-file.h>
 #include <mycms/mycms-certificate-driver-pkcs11.h>
+#include <mycms/mycms-getpass.h>
+#include <mycms/mycms.h>
 
 #include "getoptutil.h"
 #include "util.h"
 
 static const char *__FEATURES[] = {
 	"sane",
+#if defined(ENABLE_GETPASS)
+	"getpass",
+#endif
+#if defined(ENABLE_IO_DRIVER_FILE)
+	"io-driver-file",
+#endif
 #if defined(ENABLE_CERTIFICATE_DRIVER_FILE)
 	"certificate-driver-file",
 #endif
@@ -89,8 +96,22 @@ __extra_usage() {
 	const struct certificate_driver_s *sd;
 
 	printf("\nPASSPHRASE_EXPRESSION\n%4swhat=attribute=value:what=attribute=value\n", "");
-	printf("%4sAttributes:\n", "");
-	util_getpass_usage(stdout, "        ");
+	{
+		char x[1024];
+		char *p1;
+		strncpy(x, mycms_getpass_usage(), sizeof(x)-1);
+		x[sizeof(x) - 1] = '\0';
+		p1 = x;
+		while (p1 != NULL) {
+			char *p2;
+			if ((p2 = strchr(p1, '\n')) != NULL) {
+				*p2 = '\0';
+				p2++;
+			}
+			printf("%12s%s\n", "", p1);
+			p1 = p2;
+		}
+	}
 
 	printf("\nCERTIFICATE_EXPRESSION\n%4sdriver:attribute=value:attribute=value\n", "");
 
@@ -98,7 +119,6 @@ __extra_usage() {
 	for (sd = __CERTIFICATE_DRIVERS; sd->name != NULL; sd++) {
 		char x[1024];
 		char *p1;
-		char *p2;
 
 		strncpy(x, sd->u(), sizeof(x) - 1);
 		x[sizeof(x) - 1] = '\0';
@@ -106,6 +126,7 @@ __extra_usage() {
 		printf("%4s%s:\n", "", sd->name);
 		p1 = x;
 		while (p1 != NULL) {
+			char *p2;
 			if ((p2 = strchr(p1, '\n')) != NULL) {
 				*p2 = '\0';
 				p2++;
@@ -178,12 +199,13 @@ __passphrase_callback(
 	char **p,
 	const size_t size
 ) {
+	mycms mycms = mycms_certificate_get_mycms(certificate);
 	mycms_dict pass_dict = (mycms_dict)mycms_certificate_get_userdata(certificate);
 	const char *exp = mycms_dict_entry_get(pass_dict, what, NULL);
 	char prompt[1024];
 	snprintf(prompt, sizeof(prompt), "%s PIN", what);
 	prompt[sizeof(prompt)-1] = '\0';
-	return util_getpass("MyCMS", prompt, exp, *p, size);
+	return mycms_getpass(mycms, "MyCMS", prompt, exp, *p, size);
 }
 
 #if defined(ENABLE_CMS_SIGN)

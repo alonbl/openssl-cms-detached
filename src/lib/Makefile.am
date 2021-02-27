@@ -1,4 +1,4 @@
-include $(top_srcdir)/windows/ltrc.inc
+include $(top_srcdir)/build/ltrc.inc
 
 MAINTAINERCLEANFILES = \
 	$(srcdir)/Makefile.in \
@@ -11,22 +11,26 @@ CLEANFILES = \
 	mycms-all.exports.tmp \
 	$(NULL)
 
-MYCMS_EXPORTS = \
-	mycms-certificate-driver-file.exports \
-	mycms-certificate-driver-pkcs11.exports \
+MYCMS_COMMON_EXPORTS = \
 	mycms-certificate.exports \
-	mycms-core-decrypt.exports \
-	mycms-core-encrypt.exports \
-	mycms-core-sign.exports \
-	mycms-core-verify.exports \
 	mycms-dict.exports \
+	mycms-getpass.exports \
 	mycms-io.exports \
 	mycms-system.exports \
 	mycms.exports \
 	$(NULL)
+MYCMS_SELECTIVE_EXPORTS = \
+	mycms-certificate-driver-file.exports \
+	mycms-certificate-driver-pkcs11.exports \
+	mycms-core-decrypt.exports \
+	mycms-core-encrypt.exports \
+	mycms-core-sign.exports \
+	mycms-core-verify.exports \
+	$(NULL)
 
 dist_noinst_DATA = \
-	$(MYCMS_EXPORTS) \
+	$(MYCMS_COMMON_EXPORTS) \
+	$(MYCMS_SELECTIVE_EXPORTS) \
 	$(NULL)
 
 pkgconfig_DATA = libmycms.pc
@@ -46,6 +50,7 @@ libmycms_la_SOURCES = \
 	mycms-certificate-private.h \
 	mycms-certificate.c \
 	mycms-dict.c \
+	mycms-getpass.c \
 	mycms-io-private.h \
 	mycms-io.c \
 	mycms-private.h \
@@ -57,6 +62,12 @@ nodist_libmycms_la_SOURCES = \
 if BUILD_WINDOWS
 nodist_libmycms_la_SOURCES += \
 	versioninfo.rc \
+	$(NULL)
+endif
+if ENABLE_PINENTRY
+libmycms_la_SOURCES += \
+	mycms-pinentry.c \
+	mycms-pinentry.h \
 	$(NULL)
 endif
 if ENABLE_CMS_SIGN
@@ -101,16 +112,15 @@ libmycms_la_LDFLAGS = \
 	$(NULL)
 
 mycms-all.exports: \
+		$(MYCMS_COMMON_EXPORTS) \
+		$(MYCMS_SELECTIVE_EXPORTS) \
+		$(builddir)/Makefile \
 		$(top_builddir)/config.h \
-		$(top_builddir)/Makefile \
-		$(MYCMS_EXPORTS) \
 		$(NULL)
 	rm -f mycms-all.exports.tmp
-	cat "$(srcdir)/mycms-certificate.exports" >> mycms-all.exports.tmp
-	cat "$(srcdir)/mycms-dict.exports" >> mycms-all.exports.tmp
-	cat "$(srcdir)/mycms-io.exports" >> mycms-all.exports.tmp
-	cat "$(srcdir)/mycms-system.exports" >> mycms-all.exports.tmp
-	cat "$(srcdir)/mycms.exports" >> mycms-all.exports.tmp
+	for f in $(MYCMS_COMMON_EXPORTS); do \
+		cat "$(srcdir)/$$f" >> mycms-all.exports.tmp; \
+	done
 if ENABLE_CMS_SIGN
 	cat "$(srcdir)/mycms-core-sign.exports" >> mycms-all.exports.tmp
 endif

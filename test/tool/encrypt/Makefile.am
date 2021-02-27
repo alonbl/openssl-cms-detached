@@ -9,7 +9,14 @@ CLEANFILES = \
 clean-local:
 	rm -fr gen
 
+if !BUILD_WINDOWS
 check-am: built.pki
+
+TESTS = \
+	test-file.sh \
+	test-pkcs11.sh \
+	$(NULL)
+endif
 
 dist_noinst_SCRIPTS = \
 	test-file.sh \
@@ -24,17 +31,12 @@ dist_noinst_DATA = \
 TESTS_ENVIRONMENT = \
 	builddir="$(builddir)" \
 	top_builddir="$(top_builddir)" \
-	MYCMS_TOOL="$(top_builddir)/src/tool/mycms-tool" \
+	MYCMS_TOOL="$(top_builddir)/src/tool/mycms-tool$(EXEEXT)" \
 	SOFTHSM2_UTIL="$(SOFTHSM2_UTIL)" \
 	SOFTHSM2_MODULE="$(SOFTHSM2_MODULE)" \
 	PKCS11_TOOL="$(PKCS11_TOOL)" \
 	VALGRIND="$(VALGRIND)" \
 	LIBTOOL="$(LIBTOOL)" \
-	$(NULL)
-
-TESTS = \
-	test-file.sh \
-	test-pkcs11.sh \
 	$(NULL)
 
 built.pki:	Makefile

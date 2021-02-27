@@ -52,6 +52,13 @@ AC_ARG_ENABLE(
 )
 
 AC_ARG_ENABLE(
+	[system-driver-default],
+	[AS_HELP_STRING([--disable-system-driver-default], [disable default system driver])],
+	,
+	[enable_system_driver_default="yes"]
+)
+
+AC_ARG_ENABLE(
 	[tests],
 	[AS_HELP_STRING([--enable-tests], [enable tests])],
 	,
@@ -70,6 +77,13 @@ AC_ARG_ENABLE(
 	[AS_HELP_STRING([--enable-openssl-err-strings], [enable openssl error strings])],
 	,
 	[enable_openssl_err_strings="no"]
+)
+
+AC_ARG_ENABLE(
+	[pinentry],
+	[AS_HELP_STRING([--enable-pinentry], [enable pinentry support])],
+	,
+	[enable_pinentry="no"]
 )
 
 AC_ARG_ENABLE(
@@ -190,6 +204,7 @@ AC_CHECK_FUNCS([ \
 case "${host}" in
 	*-mingw*)
 		BUILD_WINDOWS=yes
+		CPPFLAGS="${CPPFLAGS} -DWIN32_LEAN_AND_MEAN"
 		AC_DEFINE([BUILD_WINDOWS], [1], [Build windows])
 		AC_DEFINE([HAVE_SECUREZEROMEMORY], [1], [Have SecureZeroMemory])
 		;;
@@ -222,8 +237,10 @@ AC_MSG_RESULT([${SOFTHSM2_MODULE}])
 test "${enable_all_static}" = "yes" && \
 	LDFLAGS="${LDFLAGS} -all-static"
 
+test "${enable_system_driver_default}" = "yes" && AC_DEFINE([ENABLE_SYSTEM_DRIVER_DEFAULT], [1], [Enable default system driver])
 test "${enable_tool}" = "yes" && AC_DEFINE([ENABLE_TOOL], [1], [Enable tool])
 test "${enable_openssl_err_strings}" = "yes" && AC_DEFINE([ENABLE_OPENSSL_ERR_STRINGS], [1], [Enable openssl error strings])
+test "${enable_pinentry}" = "yes" && AC_DEFINE([ENABLE_PINENTRY], [1], [Enable pinentry])
 test "${enable_cms_sign}" = "yes" && AC_DEFINE([ENABLE_CMS_SIGN], [1], [Enable cms sign])
 test "${enable_cms_verify}" = "yes" && AC_DEFINE([ENABLE_CMS_VERIFY], [1], [Enable cms verify])
 test "${enable_cms_decrypt}" = "yes" && AC_DEFINE([ENABLE_CMS_DECRYPT], [1], [Enable cms decrypt])
@@ -264,9 +281,11 @@ AC_SUBST([LIBMYCMS_LT_CURRENT])
 AC_SUBST([LIBMYCMS_LT_REVISION])
 AC_SUBST([LIBMYCMS_LT_AGE])
 AC_SUBST([LIBMYCMS_LT_OLDEST])
+AM_CONDITIONAL([CROSS_COMPILING], [test "${cross_compiling}" = "yes"])
 AM_CONDITIONAL([BUILD_WINDOWS], [test "${BUILD_WINDOWS}" = "yes"])
 AM_CONDITIONAL([ENABLE_TESTS], [test "${enable_tests}" = "yes"])
 AM_CONDITIONAL([ENABLE_TOOL], [test "${enable_tool}" = "yes"])
+AM_CONDITIONAL([ENABLE_PINENTRY], [test "${enable_pinentry}" = "yes"])
 AM_CONDITIONAL([ENABLE_CMS_SIGN], [test "${enable_cms_sign}" = "yes"])
 AM_CONDITIONAL([ENABLE_CMS_VERIFY], [test "${enable_cms_verify}" = "yes"])
 AM_CONDITIONAL([ENABLE_CMS_DECRYPT], [test "${enable_cms_decrypt}" = "yes"])
@@ -276,6 +295,7 @@ AM_CONDITIONAL([ENABLE_CERTIFICATE_DRIVER_FILE], [test "${enable_certificate_dri
 AM_CONDITIONAL([ENABLE_CERTIFICATE_DRIVER_PKCS11], [test "${enable_certificate_driver_pkcs11}" = "yes"])
 AC_CONFIG_FILES([
 	Makefile
+	build/Makefile
 	include/Makefile
 	include/mycms/Makefile
 	src/Makefile
@@ -292,6 +312,6 @@ AC_CONFIG_FILES([
 	test/tool/Makefile
 	test/tool/encrypt/Makefile
 	test/tool/sign/Makefile
-	windows/Makefile
+	test/tool/windows/Makefile
 ])
 AC_OUTPUT

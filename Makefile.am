@@ -12,6 +12,7 @@ AM_DISTCHECK_CONFIGURE_FLAGS = \
 	--enable-io-driver-file \
 	--enable-openssl-err-strings \
 	--enable-pedantic \
+	--enable-pinentry \
 	--enable-strict \
 	--enable-tests \
 	--enable-tool \
@@ -36,9 +37,9 @@ EXTRA_DIST = \
 	$(NULL)
 
 SUBDIRS = \
+	build \
 	include \
 	src \
-	windows \
 	$(NULL)
 if ENABLE_TESTS
 SUBDIRS += \

@@ -5,4 +5,5 @@ MAINTAINERCLEANFILES = \
 SUBDIRS = \
 	encrypt \
 	sign \
+	windows \
 	$(NULL)

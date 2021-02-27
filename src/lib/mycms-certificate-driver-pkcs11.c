@@ -277,9 +277,12 @@ __unload_provider(
 			t->entry.f = NULL;
 			if (t->entry.module_handle != NULL) {
 #if BUILD_WINDOWS
-				FreeLibrary(t->entry.module_handle);
+				mycms_system_get_driver(system)->FreeLibrary(system, t->entry.module_handle);
 #else
-				dlclose(t->entry.module_handle);
+				mycms_system_get_driver(system)->dlclose(
+					system,
+					t->entry.module_handle
+				);
 #endif
 				t->entry.module_handle = NULL;
 			}
@@ -340,7 +343,7 @@ __load_provider(
 		_mycms_set_pkcs11_state(mycms_certificate_get_mycms(certificate), pkcs11_provider);
 
 #ifdef BUILD_WINDOWS
-		if ((pkcs11_provider->entry.module_handle = LoadLibraryA(module)) == NULL) {
+		if ((pkcs11_provider->entry.module_handle = mycms_system_get_driver(system)->LoadLibraryA(system, module)) == NULL) {
 			goto cleanup;
 		}
 
@@ -350,7 +353,8 @@ __load_provider(
 			/*
 			 * Make compiler happy!
 			 */
-			p = GetProcAddress(
+			p = mycms_system_get_driver(system)->GetProcAddress(
+				system,
 				pkcs11_provider->entry.module_handle,
 				"C_GetFunctionList"
 			);
@@ -358,7 +362,11 @@ __load_provider(
 			memmove(&gfl, &p, sizeof(gfl));
 		}
 #else
-		if ((pkcs11_provider->entry.module_handle = dlopen(module, RTLD_NOW | RTLD_LOCAL)) == NULL) {
+		if ((pkcs11_provider->entry.module_handle = mycms_system_get_driver(system)->dlopen(
+			system,
+			module,
+			RTLD_NOW | RTLD_LOCAL
+		)) == NULL) {
 			goto cleanup;
 		}
 
@@ -368,7 +376,8 @@ __load_provider(
 			/*
 			 * Make compiler happy!
 			 */
-			p = dlsym(
+			p = mycms_system_get_driver(system)->dlsym(
+				system,
 				pkcs11_provider->entry.module_handle,
 				"C_GetFunctionList"
 			);
@@ -609,6 +618,7 @@ __open_private_key(
 	};
 	CK_RV rv = CKR_FUNCTION_FAILED;
 
+	int retry;
 	int ret = 0;
 
 	if ((system = mycms_certificate_get_system(certificate)) == NULL) {
@@ -619,7 +629,8 @@ __open_private_key(
 		goto cleanup;
 	}
 
-	while (1) {
+	retry = 3;
+	while(retry--) {
 		if (!certificate_pkcs11->assume_loggedin && certificate_pkcs11->login_required) {
 			if ((rv = __common_login(certificate, CKU_USER, "token")) != CKR_OK) {
 				switch (rv) {
