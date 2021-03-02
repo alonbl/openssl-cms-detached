@@ -10,24 +10,38 @@
 
 char *
 util_strchr_escape(
-	const char * const s,
+	char * const s,
 	const char c
 ) {
-	const char * p = s;
+	char *p1 = s;
+	char *p2 = p1;
 	int escape = 0;
 
-	while (*p != '\0' && (escape || *p != c)) {
+	while (*p1 != '\0' && (escape || *p1 != c)) {
 		if (escape) {
 			escape = 0;
+			*p2 = *p1;
+			p2++;
 		} else {
-			if (*p == '\\') {
+			if (*p1 == '\\') {
 				escape = 1;
+			} else {
+				*p2 = *p1;
+				p2++;
 			}
 		}
-		p++;
+		p1++;
 	}
 
-	return *p == '\0' ? NULL : (char *)p;
+	if (p1 != p2) {
+		*p2 = '\0';
+	}
+	if (*p1 != '\0') {
+		*p1 = '\0';
+		p1++;
+	}
+
+	return *p1 == '\0' ? NULL : (char *)p1;
 }
 
 int
@@ -52,10 +66,7 @@ util_split_string(
 	p0 = s;
 
 	while (p0 != NULL) {
-		if ((p1 = util_strchr_escape(p0, ':')) != NULL) {
-			*p1 = '\0';
-			p1++;
-		}
+		p1 = util_strchr_escape(p0, ':');
 
 		if ((p2 = strchr(p0, '=')) != NULL) {
 			*p2 = '\0';

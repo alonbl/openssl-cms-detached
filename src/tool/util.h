@@ -5,7 +5,7 @@
 
 char *
 util_strchr_escape(
-	const char * const s,
+	char * const s,
 	const char c
 );
 
