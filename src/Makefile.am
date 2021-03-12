@@ -3,6 +3,7 @@ MAINTAINERCLEANFILES = \
 	$(NULL)
 
 SUBDIRS = \
-	lib \
-	tool \
+	libmycms \
+	libmycms-util \
+	mycms-tool \
 	$(NULL)

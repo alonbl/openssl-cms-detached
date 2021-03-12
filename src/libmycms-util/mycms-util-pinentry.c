@@ -13,9 +13,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "mycms-pinentry.h"
+#include "mycms-system-driver-util.h"
+#include "mycms-util-pinentry.h"
 
-struct _mycms_pinentry_s {
+struct _mycms_util_pinentry_s {
 	mycms mycms;
 #ifdef BUILD_WINDOWS
 	HANDLE channel;
@@ -27,7 +28,7 @@ struct _mycms_pinentry_s {
 	int dummy;
 };
 
-static const struct _mycms_pinentry_s __MYCMS_ENTRY_INIT = {
+static const struct _mycms_util_pinentry_s __MYCMS_ENTRY_INIT = {
 	NULL,
 #ifdef BUILD_WINDOWS
 	INVALID_HANDLE_VALUE,
@@ -64,17 +65,17 @@ __pinentry_native_exec(
 	mycms_system_cleanse(system, &procinfo, sizeof(procinfo));
 	procinfo.hProcess = INVALID_HANDLE_VALUE;
 	mycms_system_cleanse(system, &overlapped, sizeof(overlapped));
-	overlapped.hEvent = mycms_system_get_driver(system)->CreateEvent(system, NULL, TRUE, FALSE, NULL);
+	overlapped.hEvent = mycms_system_driver_util_CreateEventA(system)(system, NULL, TRUE, FALSE, NULL);
 
 	snprintf(
 		name_unique,
 		sizeof(name_unique),
 		"\\\\.\\pipe\\mycms-%08lx-%08lx",
-		mycms_system_get_driver(system)->GetCurrentProcessId(system),
-		mycms_system_get_driver(system)->GetCurrentThreadId(system)
+		mycms_system_driver_util_GetCurrentProcessId(system)(system),
+		mycms_system_driver_util_GetCurrentThreadId(system)(system)
 	);
 
-	if ((pinentry->channel = mycms_system_get_driver(system)->CreateNamedPipeA(
+	if ((pinentry->channel = mycms_system_driver_util_CreateNamedPipeA(system)(
 		system,
 		name_unique,
 		PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,
@@ -88,13 +89,13 @@ __pinentry_native_exec(
 		goto cleanup;
 	}
 
-	if (!mycms_system_get_driver(system)->ConnectNamedPipe(system, pinentry->channel, &overlapped)) {
-		if (mycms_system_get_driver(system)->GetLastError(system) != ERROR_IO_PENDING) {
+	if (!mycms_system_driver_util_ConnectNamedPipe(system)(system, pinentry->channel, &overlapped)) {
+		if (mycms_system_driver_util_GetLastError(system)(system) != ERROR_IO_PENDING) {
 			goto cleanup;
 		}
 	}
 
-	if ((h = mycms_system_get_driver(system)->CreateFile(
+	if ((h = mycms_system_driver_util_CreateFileA(system)(
 		system,
 		name_unique,
 		GENERIC_READ | GENERIC_WRITE,
@@ -110,7 +111,7 @@ __pinentry_native_exec(
 
 	{
 		DWORD dw;
-		if (!mycms_system_get_driver(system)->GetOverlappedResult(
+		if (!mycms_system_driver_util_GetOverlappedResult(system)(
 			system,
 			pinentry->channel,
 			&overlapped,
@@ -122,11 +123,11 @@ __pinentry_native_exec(
 
 	startinfo.cb = sizeof(startinfo);
 	startinfo.dwFlags = STARTF_USESTDHANDLES;
-	if (!mycms_system_get_driver(system)->DuplicateHandle(
+	if (!mycms_system_driver_util_DuplicateHandle(system)(
 		system,
-		mycms_system_get_driver(system)->GetCurrentProcess(system),
+		mycms_system_driver_util_GetCurrentProcess(system)(system),
 		h,
-		mycms_system_get_driver(system)->GetCurrentProcess(system),
+		mycms_system_driver_util_GetCurrentProcess(system)(system),
 		&startinfo.hStdInput,
 		0,
 		TRUE,
@@ -134,11 +135,11 @@ __pinentry_native_exec(
 	)) {
 		goto cleanup;
 	}
-	if (!mycms_system_get_driver(system)->DuplicateHandle(
+	if (!mycms_system_driver_util_DuplicateHandle(system)(
 		system,
-		mycms_system_get_driver(system)->GetCurrentProcess(system),
+		mycms_system_driver_util_GetCurrentProcess(system)(system),
 		h,
-		mycms_system_get_driver(system)->GetCurrentProcess(system),
+		mycms_system_driver_util_GetCurrentProcess(system)(system),
 		&startinfo.hStdOutput,
 		0,
 		TRUE,
@@ -146,11 +147,11 @@ __pinentry_native_exec(
 	)) {
 		goto cleanup;
 	}
-	if (!mycms_system_get_driver(system)->DuplicateHandle(
+	if (!mycms_system_driver_util_DuplicateHandle(system)(
 		system,
-		mycms_system_get_driver(system)->GetCurrentProcess(system),
-		mycms_system_get_driver(system)->GetStdHandle(system, STD_ERROR_HANDLE),
-		mycms_system_get_driver(system)->GetCurrentProcess(system),
+		mycms_system_driver_util_GetCurrentProcess(system)(system),
+		mycms_system_driver_util_GetStdHandle(system)(system, STD_ERROR_HANDLE),
+		mycms_system_driver_util_GetCurrentProcess(system)(system),
 		&startinfo.hStdError,
 		0,
 		TRUE,
@@ -159,7 +160,7 @@ __pinentry_native_exec(
 		goto cleanup;
 	}
 
-	if (!mycms_system_get_driver(system)->CreateProcessA(
+	if (!mycms_system_driver_util_CreateProcessA(system)(
 		system,
 		prog,
 		NULL,
@@ -183,22 +184,22 @@ __pinentry_native_exec(
 cleanup:
 
 	if (h != INVALID_HANDLE_VALUE) {
-		mycms_system_get_driver(system)->CloseHandle(system, h);
+		mycms_system_driver_util_CloseHandle(system)(system, h);
 		h = INVALID_HANDLE_VALUE;
 	}
 
 	if (startinfo.hStdInput != INVALID_HANDLE_VALUE) {
-		mycms_system_get_driver(system)->CloseHandle(system, startinfo.hStdInput);
+		mycms_system_driver_util_CloseHandle(system)(system, startinfo.hStdInput);
 		startinfo.hStdInput = INVALID_HANDLE_VALUE;
 	}
 
 	if (startinfo.hStdOutput != INVALID_HANDLE_VALUE) {
-		mycms_system_get_driver(system)->CloseHandle(system, startinfo.hStdOutput);
+		mycms_system_driver_util_CloseHandle(system)(system, startinfo.hStdOutput);
 		startinfo.hStdOutput = INVALID_HANDLE_VALUE;
 	}
 
 	if (startinfo.hStdError != INVALID_HANDLE_VALUE) {
-		mycms_system_get_driver(system)->CloseHandle(system, startinfo.hStdError);
+		mycms_system_driver_util_CloseHandle(system)(system, startinfo.hStdError);
 		startinfo.hStdError = INVALID_HANDLE_VALUE;
 	}
 
@@ -218,20 +219,20 @@ __pinentry_native_close(
 	}
 
 	if (pinentry->channel != INVALID_HANDLE_VALUE) {
-		mycms_system_get_driver(system)->CloseHandle(system, pinentry->channel);
+		mycms_system_driver_util_CloseHandle(system)(system, pinentry->channel);
 		pinentry->channel = INVALID_HANDLE_VALUE;
 	}
 
 	if (pinentry->process != INVALID_HANDLE_VALUE) {
 
-		if (mycms_system_get_driver(system)->WaitForSingleObject(
+		if (mycms_system_driver_util_WaitForSingleObject(system)(
 			system,
 			pinentry->process, 5000
 		) == WAIT_OBJECT_0) {
-			mycms_system_get_driver(system)->TerminateProcess(system, pinentry->process, 1);
+			mycms_system_driver_util_TerminateProcess(system)(system, pinentry->process, 1);
 		}
 
-		mycms_system_get_driver(system)->CloseHandle(system, pinentry->process);
+		mycms_system_driver_util_CloseHandle(system)(system, pinentry->process);
 		pinentry->process = INVALID_HANDLE_VALUE;
 	}
 
@@ -256,7 +257,7 @@ __pinentry_native_read(
 		return -1;
 	}
 
-	if (mycms_system_get_driver(system)->ReadFile(system, pinentry->channel, p, s, &r, NULL)) {
+	if (mycms_system_driver_util_ReadFile(system)(system, pinentry->channel, p, s, &r, NULL)) {
 		return r;
 	}
 	return -1;
@@ -276,7 +277,7 @@ __pinentry_native_write(
 		return -1;
 	}
 
-	if (mycms_system_get_driver(system)->WriteFile(system, pinentry->channel, p, s, &r, NULL)) {
+	if (mycms_system_driver_util_WriteFile(system)(system, pinentry->channel, p, s, &r, NULL)) {
 		return r;
 	}
 	return -1;
@@ -310,49 +311,49 @@ __pinentry_native_exec(
 		goto cleanup;
 	}
 
-	if (mycms_system_get_driver(system)->ttyname_r(system, 0, tty, sizeof(tty)) != 0) {
+	if (mycms_system_driver_util_ttyname_r(system)(system, 0, tty, sizeof(tty)) != 0) {
 		tty[0] = '\0';
 	}
 
-	if (mycms_system_get_driver(system)->socketpair(system, AF_UNIX, SOCK_STREAM, 0, sockets) < 0) {
+	if (mycms_system_driver_util_socketpair(system)(system, AF_UNIX, SOCK_STREAM, 0, sockets) < 0) {
 		goto cleanup;
 	}
 
-	if ((child = mycms_system_get_driver(system)->fork(system)) == -1) {
+	if ((child = mycms_system_driver_util_fork(system)(system)) == -1) {
 		goto cleanup;
 	}
 	else if (child == 0) {
 		struct rlimit r;
 		unsigned long i;
 
-		mycms_system_get_driver(system)->close(system, sockets[0]);
+		mycms_system_driver_util_close(system)(system, sockets[0]);
 
-		if (mycms_system_get_driver(system)->dup2(system, sockets[1], 0) == -1) {
+		if (mycms_system_driver_util_dup2(system)(system, sockets[1], 0) == -1) {
 			goto child_cleanup;
 		}
-		if (mycms_system_get_driver(system)->dup2(system, sockets[1], 1) == -1) {
+		if (mycms_system_driver_util_dup2(system)(system, sockets[1], 1) == -1) {
 			goto child_cleanup;
 		}
 
-		if (mycms_system_get_driver(system)->getrlimit(system, RLIMIT_NOFILE, &r) == -1) {
+		if (mycms_system_driver_util_getrlimit(system)(system, RLIMIT_NOFILE, &r) == -1) {
 			goto child_cleanup;
 		}
 		for (i = 4;i < r.rlim_cur;i++) {
-			mycms_system_get_driver(system)->close(system, i);
+			mycms_system_driver_util_close(system)(system, i);
 		}
 
-		if (mycms_system_get_driver(system)->execve(
+		if (mycms_system_driver_util_execve(system)(
 			system,
 			prog,
 			(char **)args,
-			mycms_system_get_driver(system)->get_environ(system)
+			mycms_system_driver_util_get_environ(system)(system)
 		) == -1) {
 			goto child_cleanup;
 		}
 
 	child_cleanup:
 
-		mycms_system_get_driver(system)->_exit(system, 1);
+		mycms_system_driver_util__exit(system)(system, 1);
 	}
 
 	pinentry->channel = sockets[0];
@@ -365,12 +366,12 @@ __pinentry_native_exec(
 cleanup:
 
 	if (sockets[0] != -1) {
-		mycms_system_get_driver(system)->close(system, sockets[0]);
+		mycms_system_driver_util_close(system)(system, sockets[0]);
 		sockets[0] = -1;
 	}
 
 	if (sockets[1] != -1) {
-		mycms_system_get_driver(system)->close(system, sockets[1]);
+		mycms_system_driver_util_close(system)(system, sockets[1]);
 		sockets[1] = -1;
 	}
 
@@ -390,29 +391,29 @@ __pinentry_native_close(
 	}
 
 	if (pinentry->channel != -1) {
-		mycms_system_get_driver(system)->close(system, pinentry->channel);
+		mycms_system_driver_util_close(system)(system, pinentry->channel);
 		pinentry->channel = -1;
 	}
 
 	if (pinentry->process != -1) {
 		int fd;
-		if ((fd = mycms_system_get_driver(system)->pidfd_open(system, pinentry->process, 0)) == -1) {
-			if (mycms_system_get_driver(system)->get_errno(system) == ENOSYS) {
-				mycms_system_get_driver(system)->kill(system, pinentry->process, SIGKILL);
-				mycms_system_get_driver(system)->waitpid(system, pinentry->process, NULL, 0);
+		if ((fd = mycms_system_driver_util_pidfd_open(system)(system, pinentry->process, 0)) == -1) {
+			if (mycms_system_driver_util_get_errno(system)(system) == ENOSYS) {
+				mycms_system_driver_util_kill(system)(system, pinentry->process, SIGKILL);
+				mycms_system_driver_util_waitpid(system)(system, pinentry->process, NULL, 0);
 			}
 		} else {
 			struct pollfd pfd = {fd, POLLIN, 0};
 			int r;
 			while (
-				(r = mycms_system_get_driver(system)->poll(system, &pfd, 1, 5000)) == -1 &&
-				mycms_system_get_driver(system)->get_errno(system) == EINTR
+				(r = mycms_system_driver_util_poll(system)(system, &pfd, 1, 5000)) == -1 &&
+				mycms_system_driver_util_get_errno(system)(system) == EINTR
 			);
 			if (r == 0) {
-				mycms_system_get_driver(system)->kill(system, pinentry->process, SIGKILL);
+				mycms_system_driver_util_kill(system)(system, pinentry->process, SIGKILL);
 			}
-			mycms_system_get_driver(system)->waitpid(system, pinentry->process, NULL, 0);
-			mycms_system_get_driver(system)->close(system, fd);
+			mycms_system_driver_util_waitpid(system)(system, pinentry->process, NULL, 0);
+			mycms_system_driver_util_close(system)(system, fd);
 		}
 
 		pinentry->process = -1;
@@ -440,8 +441,8 @@ __pinentry_native_read(
 	}
 
 	while (1) {
-		if ((r = mycms_system_get_driver(system)->read(system, pinentry->channel, p, s)) < 0) {
-			int e = mycms_system_get_driver(system)->get_errno(system);
+		if ((r = mycms_system_driver_util_read(system)(system, pinentry->channel, p, s)) < 0) {
+			int e = mycms_system_driver_util_get_errno(system)(system);
 			if (e != EAGAIN && e != EINTR) {
 				break;
 			}
@@ -468,8 +469,8 @@ __pinentry_native_write(
 	}
 
 	while (1) {
-		if ((r = mycms_system_get_driver(system)->write(system, pinentry->channel, p, s)) < 0) {
-			int e = mycms_system_get_driver(system)->get_errno(system);
+		if ((r = mycms_system_driver_util_write(system)(system, pinentry->channel, p, s)) < 0) {
+			int e = mycms_system_driver_util_get_errno(system)(system);
 			if (e != EAGAIN && e != EINTR) {
 				break;
 			}
@@ -626,7 +627,7 @@ cleanup:
 }
 
 _mycms_pinentry
-_mycms_pinentry_new(
+_mycms_util_pinentry_new(
 	const mycms mycms
 ) {
 	mycms_system system = NULL;
@@ -654,7 +655,7 @@ cleanup:
 }
 
 int
-_mycms_pinentry_construct(
+_mycms_util_pinentry_construct(
 	const _mycms_pinentry pinentry,
 	const char * const prog
 ) {
@@ -676,7 +677,7 @@ cleanup:
 }
 
 int
-_mycms_pinentry_destruct(
+_mycms_util_pinentry_destruct(
 	const _mycms_pinentry pinentry
 ) {
 	mycms_system system = NULL;
@@ -709,7 +710,7 @@ cleanup:
 }
 
 mycms
-_mycms_pinentry_get_mycms(
+_mycms_util_pinentry_get_mycms(
 	const _mycms_pinentry pinentry
 ) {
 	mycms ret = NULL;
@@ -726,7 +727,7 @@ cleanup:
 }
 
 int
-_mycms_pinentry_exec(
+_mycms_util_pinentry_exec(
 	const _mycms_pinentry pinentry,
 	const char * const title,
 	const char * const prompt,

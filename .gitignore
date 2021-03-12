@@ -44,9 +44,13 @@ m4/ltversion.m4
 m4/lt~obsolete.m4
 m4/pkg.m4
 missing
-src/lib/libmycms.pc
-src/lib/mycms-all.exports
-src/tool/mycms-tool
+src/libmycms-util/libmycms-util.pc
+src/libmycms-util/mycms-system-driver-ids-util.h
+src/libmycms-util/mycms-util-all.exports
+src/libmycms/libmycms.pc
+src/libmycms/mycms-all.exports
+src/libmycms/mycms-system-driver-ids-core.h
+src/mycms-tool/mycms-tool
 stamp-h1
 test-driver
 test/ca/rootca.pki

@@ -299,19 +299,22 @@ AC_CONFIG_FILES([
 	include/Makefile
 	include/mycms/Makefile
 	src/Makefile
-	src/lib/Makefile
-	src/lib/libmycms.pc
-	src/lib/versioninfo.rc
-	src/tool/Makefile
-	src/tool/versioninfo.rc
+	src/libmycms-util/Makefile
+	src/libmycms-util/libmycms-util.pc
+	src/libmycms-util/versioninfo.rc
+	src/libmycms/Makefile
+	src/libmycms/libmycms.pc
+	src/libmycms/versioninfo.rc
+	src/mycms-tool/Makefile
+	src/mycms-tool/versioninfo.rc
 	test/Makefile
 	test/ca/Makefile
 	test/ca/rootca.vars
 	test/ca/subca.vars
 	test/ca/vars
-	test/tool/Makefile
-	test/tool/encrypt/Makefile
-	test/tool/sign/Makefile
-	test/tool/windows/Makefile
+	test/mycms-tool/Makefile
+	test/mycms-tool/encrypt/Makefile
+	test/mycms-tool/sign/Makefile
+	test/mycms-tool/windows/Makefile
 ])
 AC_OUTPUT

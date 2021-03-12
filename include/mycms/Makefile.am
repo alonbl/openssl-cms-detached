@@ -9,9 +9,10 @@ mycmsinclude_HEADERS = \
 	mycms-certificate-driver-pkcs11.h \
 	mycms-certificate.h \
 	mycms-dict.h \
-	mycms-getpass.h \
 	mycms-io.h \
 	mycms-list.h \
 	mycms-system.h \
+	mycms-util-getpass.h \
+	mycms-util-system.h \
 	mycms.h \
 	$(NULL)

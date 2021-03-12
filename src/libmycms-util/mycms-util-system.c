@@ -5,70 +5,24 @@
 #ifdef BUILD_WINDOWS
 #include <windows.h>
 #else
-#include <dlfcn.h>
 #include <errno.h>
+#include <poll.h>
 #include <signal.h>
+#include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/syscall.h>
 #include <sys/wait.h>
+#include <unistd.h>
 #endif
 
+#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
-#include <mycms/mycms-system.h>
+#include <mycms/mycms-util-system.h>
 
-struct mycms_system_s {
-	const void *userdata;
-	struct mycms_system_driver_s driver;
-};
+#include "mycms-system-driver-ids-util.h"
 
 #ifdef ENABLE_SYSTEM_DRIVER_DEFAULT
-
-static
-int
-__driver_default_cleanse(
-	const mycms_system system __attribute__((unused)),
-	void * const p,
-	const size_t size
-) {
-#if defined(HAVE_EXPLICIT_BZERO)
-	explicit_bzero(p, size);
-#elif defined(HAVE_SECUREZEROMEMORY)
-	SecureZeroMemory(p, size);
-#else
-	memset(p, 0, size);
-#endif
-	return 1;
-}
-
-static
-void *
-__driver_default_malloc(
-	const mycms_system system __attribute__((unused)),
-	const size_t size
-) {
-	return malloc(size);
-}
-static
-void *
-__driver_default_realloc(
-	const mycms_system system __attribute__((unused)),
-	void * const p,
-	const size_t size
-) {
-	return realloc(p, size);
-}
-static
-int
-__driver_default_free(
-	const mycms_system system __attribute__((unused)),
-	void * const p
-) {
-	free(p);
-	return 1;
-}
-
 static
 char *
 __driver_default_getenv(
@@ -364,32 +318,6 @@ __driver_default_TerminateProcess(
 	return TerminateProcess(hProcess, uExitCode);
 }
 
-static
-HMODULE
-__driver_default_LoadLibraryA(
-	const mycms_system system __attribute__((unused)),
-	LPCSTR lpLibFileName
-) {
-	return LoadLibraryA(lpLibFileName);
-}
-static
-BOOL
-__driver_default_FreeLibrary(
-	const mycms_system system __attribute__((unused)),
-	HMODULE hLibModule
-) {
-	return FreeLibrary(hLibModule);
-}
-static
-FARPROC
-__driver_default_GetProcAddress(
-	const mycms_system system __attribute__((unused)),
-	HMODULE hModule,
-	LPCSTR lpProcName
-) {
-	return GetProcAddress(hModule, lpProcName);
-}
-
 #else
 
 static
@@ -435,33 +363,6 @@ __driver_default_dup2(
 	int newfd
 ) {
 	return dup2(oldfd, newfd);
-}
-
-static
-int
-__driver_default_dlclose(
-	const mycms_system system __attribute__((unused)),
-	void *handle
-) {
-	return dlclose(handle);
-}
-static
-void *
-__driver_default_dlopen(
-	const mycms_system system __attribute__((unused)),
-	const char *filename,
-	int flags
-) {
-	return dlopen(filename, flags);
-}
-static
-void *
-__driver_default_dlsym(
-	const mycms_system system __attribute__((unused)),
-	void *handle,
-	const char *symbol
-) {
-	return dlsym(handle, symbol);
 }
 
 static
@@ -561,264 +462,73 @@ __driver_default_waitpid(
 }
 
 #endif
-static const struct mycms_system_s __MYCMS_SYSTEM_INIT = {
-	NULL,
-	{
-		__driver_default_cleanse,
-		__driver_default_malloc,
-		__driver_default_realloc,
-		__driver_default_free,
-		__driver_default_getenv,
-		__driver_default_get_environ,
-		__driver_default_fopen,
-		__driver_default_fclose,
-		__driver_default_fgets,
+
+#pragma GCC diagnostic ignored "-Wcast-function-type"
+static const struct mycms_system_driver_entry_s __DRIVER_ENTRIES[] = {
+	{ MYCMS_SYSTEM_DRIVER_ID_util_fclose, (void (*)()) __driver_default_fclose},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_fgets, (void (*)()) __driver_default_fgets},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_fopen, (void (*)()) __driver_default_fopen},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_getenv, (void (*)()) __driver_default_getenv},
+
 #ifdef BUILD_WINDOWS
-		__driver_default_GetLastError,
-		__driver_default_GetCurrentProcess,
-		__driver_default_GetCurrentProcessId,
-		__driver_default_GetCurrentThreadId,
-		__driver_default_CloseHandle,
-		__driver_default_DuplicateHandle,
-		__driver_default_GetOverlappedResult,
-		__driver_default_WaitForSingleObject,
-		__driver_default_GetStdHandle,
-		__driver_default_ReadFile,
-		__driver_default_WriteFile,
-		__driver_default_CreateNamedPipeA,
-		__driver_default_ConnectNamedPipe,
-		__driver_default_CreateEventA,
-		__driver_default_CreateFileA,
-		__driver_default_CreateProcessA,
-		__driver_default_TerminateProcess,
-		__driver_default_LoadLibraryA,
-		__driver_default_FreeLibrary,
-		__driver_default_GetProcAddress,
+	{ MYCMS_SYSTEM_DRIVER_ID_util_CloseHandle, (void (*)()) __driver_default_CloseHandle},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_ConnectNamedPipe, (void (*)()) __driver_default_ConnectNamedPipe},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_CreateEventA, (void (*)()) __driver_default_CreateEventA},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_CreateFileA, (void (*)()) __driver_default_CreateFileA},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_CreateNamedPipeA, (void (*)()) __driver_default_CreateNamedPipeA},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_CreateProcessA, (void (*)()) __driver_default_CreateProcessA},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_DuplicateHandle, (void (*)()) __driver_default_DuplicateHandle},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_GetCurrentProcess, (void (*)()) __driver_default_GetCurrentProcess},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_GetCurrentProcessId, (void (*)()) __driver_default_GetCurrentProcessId},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_GetCurrentThreadId, (void (*)()) __driver_default_GetCurrentThreadId},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_GetLastError, (void (*)()) __driver_default_GetLastError},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_GetOverlappedResult, (void (*)()) __driver_default_GetOverlappedResult},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_GetStdHandle, (void (*)()) __driver_default_GetStdHandle},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_ReadFile, (void (*)()) __driver_default_ReadFile},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_TerminateProcess, (void (*)()) __driver_default_TerminateProcess},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_WaitForSingleObject, (void (*)()) __driver_default_WaitForSingleObject},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_WriteFile, (void (*)()) __driver_default_WriteFile},
 #else
-		__driver_default_get_errno,
-		__driver_default__exit,
-		__driver_default_ttyname_r,
-		__driver_default_close,
-		__driver_default_dup2,
-		__driver_default_dlclose,
-		__driver_default_dlopen,
-		__driver_default_dlsym,
-		__driver_default_execve,
-		__driver_default_fork,
-		__driver_default_getrlimit,
-		__driver_default_kill,
-		__driver_default_poll,
-		__driver_default_read,
-		__driver_default_write,
-		__driver_default_socketpair,
-		__driver_default_pidfd_open,
-		__driver_default_waitpid
+	{ MYCMS_SYSTEM_DRIVER_ID_util__exit, (void (*)()) __driver_default__exit},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_close, (void (*)()) __driver_default_close},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_dup2, (void (*)()) __driver_default_dup2},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_execve, (void (*)()) __driver_default_execve},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_fork, (void (*)()) __driver_default_fork},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_get_environ, (void (*)()) __driver_default_get_environ},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_get_errno, (void (*)()) __driver_default_get_errno},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_getrlimit, (void (*)()) __driver_default_getrlimit},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_kill, (void (*)()) __driver_default_kill},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_pidfd_open, (void (*)()) __driver_default_pidfd_open},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_poll, (void (*)()) __driver_default_poll},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_read, (void (*)()) __driver_default_read},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_socketpair, (void (*)()) __driver_default_socketpair},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_ttyname_r, (void (*)()) __driver_default_ttyname_r},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_waitpid, (void (*)()) __driver_default_waitpid},
+	{ MYCMS_SYSTEM_DRIVER_ID_util_write, (void (*)()) __driver_default_write},
 #endif
-	}
+
+	{ 0, NULL}
 };
+#pragma GCC diagnostic pop
 #else
-static const struct mycms_system_s __MYCMS_SYSTEM_INIT;
+static const struct mycms_system_driver_entry_s __DRIVER_ENTRIES[] = {
+	{ 0, NULL}
+};
 #endif
 
-size_t
-mycms_system_get_context_size(void) {
-	return sizeof(*(mycms_system)NULL);
-}
-
 int
-mycms_system_init(
-	const mycms_system system,
-	const size_t size
-) {
-	int ret = 0;
-
-	if (system == NULL) {
-		goto cleanup;
-	}
-
-	if (size < mycms_system_get_context_size()) {
-		goto cleanup;
-	}
-
-	memcpy(system, &__MYCMS_SYSTEM_INIT, sizeof(__MYCMS_SYSTEM_INIT));
-
-	ret = 1;
-
-cleanup:
-
-	return ret;
-}
-
-int
-mycms_system_clean(
-	const mycms_system system __attribute__((unused))
-) {
-	return 1;
-}
-
-const void *
-mycms_system_get_userdata(
+mycms_util_system_init(
 	const mycms_system system
 ) {
-	const void *ret = NULL;
-
-	if (system == NULL) {
-		goto cleanup;
-	}
-
-	ret = system->userdata;
-
-cleanup:
-
-	return ret;
-}
-
-int
-mycms_system_set_userdata(
-	const mycms_system system,
-	const void *userdata
-) {
 	int ret = 0;
 
 	if (system == NULL) {
 		goto cleanup;
 	}
 
-	system->userdata = userdata;
+	mycms_system_driver_register(system, __DRIVER_ENTRIES);
 
 	ret = 1;
-
-cleanup:
-
-	return ret;
-}
-
-mycms_system_driver
-mycms_system_get_driver(
-	const mycms_system system
-) {
-	return &system->driver;
-}
-
-int
-mycms_system_cleanse(
-	const mycms_system system,
-	void * const p,
-	const size_t size
-) {
-	int ret = 0;
-
-	if (system == NULL) {
-		goto cleanup;
-	}
-
-	ret = system->driver.cleanse(system, p, size);
-
-cleanup:
-
-	return ret;
-}
-
-void *
-mycms_system_malloc(
-	const mycms_system system,
-	const size_t size
-) {
-	void *ret = NULL;
-
-	if (system == NULL) {
-		goto cleanup;
-	}
-
-	ret = system->driver.malloc(system, size);
-
-cleanup:
-
-	return ret;
-}
-
-void *
-mycms_system_realloc(
-	const mycms_system system,
-	void * const p,
-	const size_t size
-) {
-	void *ret = NULL;
-
-	if (system == NULL) {
-		goto cleanup;
-	}
-
-	ret = system->driver.realloc(system, p, size);
-
-cleanup:
-
-	return ret;
-}
-
-int
-mycms_system_free(
-	const mycms_system system,
-	void * const p
-) {
-	int ret = 0;
-
-	if (system == NULL) {
-		goto cleanup;
-	}
-
-	ret = system->driver.free(system, p);
-
-cleanup:
-
-	return ret;
-}
-
-void *
-mycms_system_zalloc(
-	const mycms_system system,
-	const size_t size
-) {
-	void *ret = NULL;
-
-	if (system == NULL) {
-		goto cleanup;
-	}
-
-	if ((ret = mycms_system_malloc(system, size)) == NULL) {
-		goto cleanup;
-	}
-
-	mycms_system_cleanse(system, ret, size);
-
-cleanup:
-
-	return ret;
-}
-
-char *
-mycms_system_strdup(
-	const mycms_system system,
-	const char * const s
-) {
-	char *ret = NULL;
-	size_t size;
-
-	if (system == NULL) {
-		goto cleanup;
-	}
-
-	if (s == NULL) {
-		return NULL;
-	}
-
-	size = strlen(s) + 1;
-
-	if ((ret = mycms_system_malloc(system, size)) == NULL) {
-		goto cleanup;
-	}
-
-	memcpy(ret, s, size);
 
 cleanup:
 

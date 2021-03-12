@@ -4,5 +4,5 @@ MAINTAINERCLEANFILES = \
 
 SUBDIRS = \
 	ca \
-	tool \
+	mycms-tool \
 	$(NULL)

@@ -1,8 +1,9 @@
 mycms_system_clean
 mycms_system_cleanse
+mycms_system_driver_find
+mycms_system_driver_register
 mycms_system_free
 mycms_system_get_context_size
-mycms_system_get_driver
 mycms_system_get_userdata
 mycms_system_init
 mycms_system_malloc

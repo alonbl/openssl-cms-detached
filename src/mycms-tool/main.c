@@ -7,7 +7,8 @@
 
 #include <mycms/mycms-certificate-driver-file.h>
 #include <mycms/mycms-certificate-driver-pkcs11.h>
-#include <mycms/mycms-getpass.h>
+#include <mycms/mycms-util-getpass.h>
+#include <mycms/mycms-util-system.h>
 #include <mycms/mycms.h>
 
 #include "getoptutil.h"
@@ -15,8 +16,8 @@
 
 static const char *__FEATURES[] = {
 	"sane",
-#if defined(ENABLE_GETPASS)
-	"getpass",
+#if defined(ENABLE_PINENTRY)
+	"pinentry",
 #endif
 #if defined(ENABLE_IO_DRIVER_FILE)
 	"io-driver-file",
@@ -99,7 +100,7 @@ __extra_usage() {
 	{
 		char x[1024];
 		char *p1;
-		strncpy(x, mycms_getpass_usage(), sizeof(x)-1);
+		strncpy(x, mycms_util_getpass_usage(), sizeof(x)-1);
 		x[sizeof(x) - 1] = '\0';
 		p1 = x;
 		while (p1 != NULL) {
@@ -205,12 +206,16 @@ __passphrase_callback(
 	char prompt[1024];
 	snprintf(prompt, sizeof(prompt), "%s PIN", what);
 	prompt[sizeof(prompt)-1] = '\0';
-	return mycms_getpass(mycms, "MyCMS", prompt, exp, *p, size);
+	return mycms_util_getpass(mycms, "MyCMS", prompt, exp, *p, size);
 }
 
 #if defined(ENABLE_CMS_SIGN)
 
-static int __cmd_sign(int argc, char *argv[]) {
+static int __cmd_sign(
+	const mycms_system system,
+	int argc,
+	char *argv[]
+) {
 	enum {
 		OPT_HELP = 0x1000,
 		OPT_DIGEST,
@@ -240,8 +245,6 @@ static int __cmd_sign(int argc, char *argv[]) {
 	const char * certificate_exp = NULL;
 	const char * pass_exp = NULL;
 
-	char _mycms_system[MYCMS_SYSTEM_CONTEXT_SIZE] = {0};
-	mycms_system system = (mycms_system)_mycms_system;
 	mycms mycms = NULL;
 	mycms_io cms_in = NULL;
 	mycms_io cms_out = NULL;
@@ -250,10 +253,6 @@ static int __cmd_sign(int argc, char *argv[]) {
 	mycms_dict pass_dict = NULL;
 	mycms_certificate certificate = NULL;
 	mycms_list_str digests = NULL;
-
-	if (!mycms_system_init(system, sizeof(_mycms_system))) {
-		goto cleanup;
-	}
 
 	if ((mycms = mycms_new(system)) == NULL) {
 		goto cleanup;
@@ -438,8 +437,6 @@ cleanup:
 	mycms_destruct(mycms);
 	mycms = NULL;
 
-	mycms_system_clean(system);
-
 	return ret;
 }
 
@@ -447,7 +444,11 @@ cleanup:
 
 #if defined(ENABLE_CMS_VERIFY)
 
-static int __cmd_verify_list(int argc, char *argv[]) {
+static int __cmd_verify_list(
+	const mycms_system system,
+	int argc,
+	char *argv[]
+) {
 	enum {
 		OPT_HELP = 0x1000,
 		OPT_CMS_IN,
@@ -464,16 +465,10 @@ static int __cmd_verify_list(int argc, char *argv[]) {
 	int option;
 	int ret = 1;
 
-	char _mycms_system[MYCMS_SYSTEM_CONTEXT_SIZE] = {0};
-	mycms_system system = (mycms_system)_mycms_system;
 	mycms mycms = NULL;
 	mycms_io cms_in = NULL;
 	mycms_list_blob keyids = NULL;
 	mycms_list_blob t = NULL;
-
-	if (!mycms_system_init(system, sizeof(_mycms_system))) {
-		goto cleanup;
-	}
 
 	if ((mycms = mycms_new(system)) == NULL) {
 		goto cleanup;
@@ -545,12 +540,14 @@ cleanup:
 	mycms_destruct(mycms);
 	mycms = NULL;
 
-	mycms_system_clean(system);
-
 	return ret;
 }
 
-static int __cmd_verify(int argc, char *argv[]) {
+static int __cmd_verify(
+	const mycms_system system,
+	int argc,
+	char *argv[]
+) {
 	enum {
 		OPT_HELP = 0x1000,
 		OPT_CMS_IN,
@@ -572,16 +569,10 @@ static int __cmd_verify(int argc, char *argv[]) {
 	int verified = 0;
 	int ret = 1;
 
-	char _mycms_system[MYCMS_SYSTEM_CONTEXT_SIZE] = {0};
-	mycms_system system = (mycms_system)_mycms_system;
 	mycms mycms = NULL;
 	mycms_io cms_in = NULL;
 	mycms_io data_in = NULL;
 	mycms_list_blob certs = NULL;
-
-	if (!mycms_system_init(system, sizeof(_mycms_system))) {
-		goto cleanup;
-	}
 
 	if ((mycms = mycms_new(system)) == NULL) {
 		goto cleanup;
@@ -688,8 +679,6 @@ cleanup:
 		mycms_system_free(system, t);
 	}
 
-	mycms_system_clean(system);
-
 	return ret;
 }
 
@@ -698,7 +687,11 @@ cleanup:
 
 #if defined(ENABLE_CMS_ENCRYPT)
 
-static int __cmd_encrypt(int argc, char *argv[]) {
+static int __cmd_encrypt(
+	const mycms_system system,
+	int argc,
+	char *argv[]
+) {
 	enum {
 		OPT_HELP = 0x1000,
 		OPT_CIPHER,
@@ -725,17 +718,11 @@ static int __cmd_encrypt(int argc, char *argv[]) {
 
 	const char *cipher = "AES-256-CBC";
 
-	char _mycms_system[MYCMS_SYSTEM_CONTEXT_SIZE] = {0};
-	mycms_system system = (mycms_system)_mycms_system;
 	mycms mycms = NULL;
 	mycms_io cms_out = NULL;
 	mycms_io data_pt = NULL;
 	mycms_io data_ct = NULL;
 	mycms_list_blob to = NULL;
-
-	if (!mycms_system_init(system, sizeof(_mycms_system))) {
-		goto cleanup;
-	}
 
 	if ((mycms = mycms_new(system)) == NULL) {
 		goto cleanup;
@@ -861,13 +848,15 @@ cleanup:
 	mycms_destruct(mycms);
 	mycms = NULL;
 
-	mycms_system_clean(system);
-
 	return ret;
 }
 
 
-static int __cmd_encrypt_add(int argc, char *argv[]) {
+static int __cmd_encrypt_add(
+	const mycms_system system,
+	int argc,
+	char *argv[]
+) {
 	enum {
 		OPT_HELP = 0x1000,
 		OPT_CMS_IN,
@@ -895,8 +884,6 @@ static int __cmd_encrypt_add(int argc, char *argv[]) {
 	const char * certificate_exp = NULL;
 	const char * pass_exp = NULL;
 
-	char _mycms_system[MYCMS_SYSTEM_CONTEXT_SIZE] = {0};
-	mycms_system system = (mycms_system)_mycms_system;
 	mycms mycms = NULL;
 	mycms_io cms_in = NULL;
 	mycms_io cms_out = NULL;
@@ -904,10 +891,6 @@ static int __cmd_encrypt_add(int argc, char *argv[]) {
 	mycms_dict certificate_dict = NULL;
 	mycms_dict pass_dict = NULL;
 	mycms_certificate certificate = NULL;
-
-	if (!mycms_system_init(system, sizeof(_mycms_system))) {
-		goto cleanup;
-	}
 
 	if ((mycms = mycms_new(system)) == NULL) {
 		goto cleanup;
@@ -1089,8 +1072,6 @@ cleanup:
 	mycms_destruct(mycms);
 	mycms = NULL;
 
-	mycms_system_clean(system);
-
 	return ret;
 }
 
@@ -1098,7 +1079,11 @@ cleanup:
 
 #if defined(ENABLE_CMS_DECRYPT)
 
-static int __cmd_decrypt(int argc, char *argv[]) {
+static int __cmd_decrypt(
+	const mycms_system system,
+	int argc,
+	char *argv[]
+) {
 	enum {
 		OPT_HELP = 0x1000,
 		OPT_CMS_IN,
@@ -1126,8 +1111,6 @@ static int __cmd_decrypt(int argc, char *argv[]) {
 	const char * certificate_exp = NULL;
 	const char * pass_exp = NULL;
 
-	char _mycms_system[MYCMS_SYSTEM_CONTEXT_SIZE] = {0};
-	mycms_system system = (mycms_system)_mycms_system;
 	mycms mycms = NULL;
 	mycms_io cms_in = NULL;
 	mycms_io data_pt = NULL;
@@ -1135,10 +1118,6 @@ static int __cmd_decrypt(int argc, char *argv[]) {
 	mycms_dict certificate_dict = NULL;
 	mycms_dict pass_dict = NULL;
 	mycms_certificate certificate = NULL;
-
-	if (!mycms_system_init(system, sizeof(_mycms_system))) {
-		goto cleanup;
-	}
 
 	if ((mycms = mycms_new(system)) == NULL) {
 		goto cleanup;
@@ -1312,8 +1291,6 @@ cleanup:
 	mycms_destruct(mycms);
 	mycms = NULL;
 
-	mycms_system_clean(system);
-
 	return ret;
 }
 
@@ -1329,7 +1306,7 @@ int main(int argc, char *argv[]) {
 	static struct commands_s {
 		const char *c;
 		const char *m;
-		int (*f)(int argc, char *argv[]);
+		int (*f)(const mycms_system system, int argc, char *argv[]);
 	} commands[] = {
 #if defined(ENABLE_CMS_SIGN)
 		{"sign", "sign data", __cmd_sign},
@@ -1363,6 +1340,9 @@ int main(int argc, char *argv[]) {
 	int ret = 1;
 
 	if (!mycms_system_init(system, sizeof(_mycms_system))) {
+		goto cleanup;
+	}
+	if (!mycms_util_system_init(system)) {
 		goto cleanup;
 	}
 
@@ -1412,7 +1392,7 @@ int main(int argc, char *argv[]) {
 
 	for (cmd = commands; cmd->c != NULL; cmd++) {
 		if (!strcmp(command, cmd->c)) {
-			ret = cmd->f(argc, argv);
+			ret = cmd->f(system, argc, argv);
 			goto cleanup;
 		}
 	}

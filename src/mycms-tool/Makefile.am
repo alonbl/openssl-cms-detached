@@ -27,5 +27,6 @@ nodist_mycms_tool_SOURCES += \
 	$(NULL)
 endif
 mycms_tool_LDADD = \
-	$(builddir)/../lib/libmycms.la \
+	$(builddir)/../libmycms-util/libmycms-util.la \
+	$(builddir)/../libmycms/libmycms.la \
 	$(NULL)

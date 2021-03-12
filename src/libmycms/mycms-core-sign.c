@@ -2,12 +2,11 @@
 #include <config.h>
 #endif
 
-#include <openssl/cms.h>
-
 #include <mycms/mycms.h>
 
 #include "mycms-certificate-private.h"
 #include "mycms-io-private.h"
+#include "mycms-system-driver-core.h"
 
 int
 mycms_sign(
@@ -18,6 +17,7 @@ mycms_sign(
 	const mycms_io cms_out,
 	const mycms_io data_in
 ) {
+	mycms_system system = NULL;
 	CMS_ContentInfo *cms = NULL;
 #if 0
 	EVP_PKEY_CTX *ctx = NULL;
@@ -30,17 +30,21 @@ mycms_sign(
 		goto cleanup;
 	}
 
+	if ((system = mycms_get_system(mycms)) == NULL) {
+		goto cleanup;
+	}
+
 	if (certificate == NULL) {
 		goto cleanup;
 	}
 
 	if (cms_in == NULL) {
 		flags |= CMS_PARTIAL;
-		if ((cms = CMS_sign(NULL, NULL, NULL, NULL, flags)) == NULL) {
+		if ((cms = mycms_system_driver_core_CMS_sign(system)(system, NULL, NULL, NULL, NULL, flags)) == NULL) {
 			goto cleanup;
 		}
 	} else {
-		if ((cms = d2i_CMS_bio(_mycms_io_get_BIO(cms_in), NULL)) == NULL) {
+		if ((cms = mycms_system_driver_core_d2i_CMS_bio(system)(system, _mycms_io_get_BIO(cms_in), NULL)) == NULL) {
 			goto cleanup;
 		}
 	}
@@ -57,7 +61,8 @@ mycms_sign(
 			goto cleanup;
 		}
 
-		if ((signer = CMS_add1_signer(
+		if ((signer = mycms_system_driver_core_CMS_add1_signer(system)(
+			system,
 			cms,
 			_mycms_certificate_get_X509(certificate),
 			_mycms_certificate_get_EVP_PKEY(certificate),
@@ -81,14 +86,14 @@ mycms_sign(
 	}
 
 	if (cms_in != NULL) {
-		if (!i2d_CMS_bio_stream(_mycms_io_get_BIO(cms_out), cms, _mycms_io_get_BIO(data_in), flags)) {
+		if (!mycms_system_driver_core_i2d_CMS_bio_stream(system)(system, _mycms_io_get_BIO(cms_out), cms, _mycms_io_get_BIO(data_in), flags)) {
 			goto cleanup;
 		}
 	} else {
-		if (!CMS_final(cms, _mycms_io_get_BIO(data_in), NULL, flags)) {
+		if (!mycms_system_driver_core_CMS_final(system)(system, cms, _mycms_io_get_BIO(data_in), NULL, flags)) {
 			goto cleanup;
 		}
-		if (i2d_CMS_bio(_mycms_io_get_BIO(cms_out), cms) <= 0) {
+		if (mycms_system_driver_core_i2d_CMS_bio(system)(system, _mycms_io_get_BIO(cms_out), cms) <= 0) {
 			goto cleanup;
 		}
 	}
@@ -97,7 +102,7 @@ mycms_sign(
 
 cleanup:
 
-	CMS_ContentInfo_free(cms);
+	mycms_system_driver_core_CMS_ContentInfo_free(system)(system, cms);
 	cms = NULL;
 
 	return ret;

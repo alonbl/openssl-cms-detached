@@ -4,10 +4,10 @@
 #include <mycms/mycms.h>
 
 const char *
-mycms_getpass_usage(void);
+mycms_util_getpass_usage(void);
 
 int
-mycms_getpass(
+mycms_util_getpass(
 	const mycms mycms,
 	const char * const title,
 	const char * const prompt,

@@ -20,6 +20,7 @@
 #include <mycms/mycms-certificate-driver-pkcs11.h>
 
 #include "mycms-private.h"
+#include "mycms-system-driver-core.h"
 #include "pkcs11.h"
 
 #define __INVALID_SESSION_HANDLE	((CK_SESSION_HANDLE)-1)
@@ -121,7 +122,7 @@ __get_object_attributes(
 	}
 
 	for (i=0;i<count;i++) {
-		if (attrs[i].ulValueLen == (CK_ULONG)-1) {
+		if (attrs[i].ulValueLen == CK_UNAVAILABLE_INFORMATION) {
 			rv = CKR_ATTRIBUTE_VALUE_INVALID;
 			goto cleanup;
 		}
@@ -277,9 +278,9 @@ __unload_provider(
 			t->entry.f = NULL;
 			if (t->entry.module_handle != NULL) {
 #if BUILD_WINDOWS
-				mycms_system_get_driver(system)->FreeLibrary(system, t->entry.module_handle);
+				mycms_system_driver_core_FreeLibrary(system)(system, t->entry.module_handle);
 #else
-				mycms_system_get_driver(system)->dlclose(
+				mycms_system_driver_core_dlclose(system)(
 					system,
 					t->entry.module_handle
 				);
@@ -343,7 +344,7 @@ __load_provider(
 		_mycms_set_pkcs11_state(mycms_certificate_get_mycms(certificate), pkcs11_provider);
 
 #ifdef BUILD_WINDOWS
-		if ((pkcs11_provider->entry.module_handle = mycms_system_get_driver(system)->LoadLibraryA(system, module)) == NULL) {
+		if ((pkcs11_provider->entry.module_handle = mycms_system_driver_core_LoadLibraryA(system)(system, module)) == NULL) {
 			goto cleanup;
 		}
 
@@ -353,7 +354,7 @@ __load_provider(
 			/*
 			 * Make compiler happy!
 			 */
-			p = mycms_system_get_driver(system)->GetProcAddress(
+			p = mycms_system_driver_core_GetProcAddress(system)(
 				system,
 				pkcs11_provider->entry.module_handle,
 				"C_GetFunctionList"
@@ -362,7 +363,7 @@ __load_provider(
 			memmove(&gfl, &p, sizeof(gfl));
 		}
 #else
-		if ((pkcs11_provider->entry.module_handle = mycms_system_get_driver(system)->dlopen(
+		if ((pkcs11_provider->entry.module_handle = mycms_system_driver_core_dlopen(system)(
 			system,
 			module,
 			RTLD_NOW | RTLD_LOCAL
@@ -376,7 +377,7 @@ __load_provider(
 			/*
 			 * Make compiler happy!
 			 */
-			p = mycms_system_get_driver(system)->dlsym(
+			p = mycms_system_driver_core_dlsym(system)(
 				system,
 				pkcs11_provider->entry.module_handle,
 				"C_GetFunctionList"
@@ -959,6 +960,10 @@ __driver_load(
 			cert_attrs,
 			sizeof(cert_attrs) / sizeof(*cert_attrs)
 		)) != CKR_OK) {
+			goto cleanup;
+		}
+
+		if (cert_attrs[CERT_ATTRS_ID].ulValueLen < 1) {
 			goto cleanup;
 		}
 

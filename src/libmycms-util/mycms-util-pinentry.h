@@ -3,33 +3,33 @@
 
 #include <mycms/mycms.h>
 
-struct _mycms_pinentry_s;
-typedef struct _mycms_pinentry_s *_mycms_pinentry;
+struct _mycms_util_pinentry_s;
+typedef struct _mycms_util_pinentry_s *_mycms_pinentry;
 
 
 _mycms_pinentry
-_mycms_pinentry_new(
+_mycms_util_pinentry_new(
 	const mycms mycms
 );
 
 int
-_mycms_pinentry_construct(
+_mycms_util_pinentry_construct(
 	const _mycms_pinentry pinentry,
 	const char * const prog
 );
 
 int
-_mycms_pinentry_destruct(
+_mycms_util_pinentry_destruct(
 	const _mycms_pinentry pinentry
 );
 
 mycms
-_mycms_pinentry_get_mycms(
+_mycms_util_pinentry_get_mycms(
 	const _mycms_pinentry pinentry
 );
 
 int
-_mycms_pinentry_exec(
+_mycms_util_pinentry_exec(
 	const _mycms_pinentry pinentry,
 	const char * const title,
 	const char * const prompt,

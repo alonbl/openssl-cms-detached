@@ -9,12 +9,49 @@ DISTCLEANFILES = \
 CLEANFILES = \
 	mycms-all.exports \
 	mycms-all.exports.tmp \
+	mycms-system-driver-ids-core.h \
 	$(NULL)
 
+MYCMS_SYSTEM_DRIVER_IMPORTS = \
+	CMS_ContentInfo_free \
+	CMS_RecipientInfo_encrypt \
+	CMS_RecipientInfo_get0_pkey_ctx \
+	CMS_SignerInfo_cert_cmp \
+	CMS_SignerInfo_get0_signer_id \
+	CMS_SignerInfo_verify_content \
+	CMS_add1_recipient_cert \
+	CMS_add1_signer \
+	CMS_dataInit \
+	CMS_decrypt \
+	CMS_decrypt_set1_pkey \
+	CMS_encrypt \
+	CMS_final \
+	CMS_get0_SignerInfos \
+	CMS_sign \
+	d2i_CMS_bio \
+	explicit_bzero \
+	free \
+	i2d_CMS_bio \
+	i2d_CMS_bio_stream \
+	malloc \
+	realloc \
+	$(NULL)
+if BUILD_WINDOWS
+MYCMS_SYSTEM_DRIVER_IMPORTS += \
+	FreeLibrary \
+	GetProcAddress \
+	LoadLibraryA \
+	$(NULL)
+else
+MYCMS_SYSTEM_DRIVER_IMPORTS += \
+	dlclose \
+	dlopen \
+	dlsym \
+	$(NULL)
+endif
 MYCMS_COMMON_EXPORTS = \
 	mycms-certificate.exports \
 	mycms-dict.exports \
-	mycms-getpass.exports \
 	mycms-io.exports \
 	mycms-system.exports \
 	mycms.exports \
@@ -26,6 +63,10 @@ MYCMS_SELECTIVE_EXPORTS = \
 	mycms-core-encrypt.exports \
 	mycms-core-sign.exports \
 	mycms-core-verify.exports \
+	$(NULL)
+
+BUILT_SOURCES = \
+	mycms-system-driver-ids-core.h \
 	$(NULL)
 
 dist_noinst_DATA = \
@@ -50,10 +91,10 @@ libmycms_la_SOURCES = \
 	mycms-certificate-private.h \
 	mycms-certificate.c \
 	mycms-dict.c \
-	mycms-getpass.c \
 	mycms-io-private.h \
 	mycms-io.c \
 	mycms-private.h \
+	mycms-system-driver-core.h \
 	mycms-system.c \
 	mycms.c \
 	$(NULL)
@@ -62,12 +103,6 @@ nodist_libmycms_la_SOURCES = \
 if BUILD_WINDOWS
 nodist_libmycms_la_SOURCES += \
 	versioninfo.rc \
-	$(NULL)
-endif
-if ENABLE_PINENTRY
-libmycms_la_SOURCES += \
-	mycms-pinentry.c \
-	mycms-pinentry.h \
 	$(NULL)
 endif
 if ENABLE_CMS_SIGN
@@ -110,6 +145,11 @@ libmycms_la_LDFLAGS = \
 	-export-symbols "mycms-all.exports" \
 	-no-undefined \
 	$(NULL)
+
+mycms-system-driver-ids-core.h:	\
+		Makefile.am \
+		$(NULL)
+	"$(top_srcdir)/build/mycms-system-driver-id-gen.sh" core $(MYCMS_SYSTEM_DRIVER_IMPORTS) > "$@"
 
 mycms-all.exports: \
 		$(MYCMS_COMMON_EXPORTS) \

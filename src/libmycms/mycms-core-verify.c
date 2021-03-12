@@ -4,11 +4,10 @@
 
 #include <string.h>
 
-#include <openssl/cms.h>
-
 #include <mycms/mycms.h>
 
 #include "mycms-io-private.h"
+#include "mycms-system-driver-core.h"
 
 static
 STACK_OF(X509) *
@@ -109,11 +108,11 @@ mycms_verify_list(
 		goto cleanup;
 	}
 
-	if ((cms = d2i_CMS_bio(_mycms_io_get_BIO(cms_in), NULL)) == NULL) {
+	if ((cms = mycms_system_driver_core_d2i_CMS_bio(system)(system, _mycms_io_get_BIO(cms_in), NULL)) == NULL) {
 		goto cleanup;
 	}
 
-	if ((signers = CMS_get0_SignerInfos(cms)) == NULL) {
+	if ((signers = mycms_system_driver_core_CMS_get0_SignerInfos(system)(system, cms)) == NULL) {
 		goto cleanup;
 	}
 
@@ -121,7 +120,7 @@ mycms_verify_list(
 		CMS_SignerInfo *signer = sk_CMS_SignerInfo_value(signers, i);
 		ASN1_OCTET_STRING *keyid = NULL;
 
-		if (CMS_SignerInfo_get0_signer_id(signer, &keyid, NULL, NULL)) {
+		if (mycms_system_driver_core_CMS_SignerInfo_get0_signer_id(system)(system, signer, &keyid, NULL, NULL)) {
 			mycms_list_blob t = NULL;
 
 			if ((t = mycms_system_zalloc(system, sizeof(*t))) == NULL) {
@@ -150,7 +149,7 @@ cleanup:
 	mycms_verify_list_free(mycms, _keyids);
 	_keyids = NULL;
 
-	CMS_ContentInfo_free(cms);
+	mycms_system_driver_core_CMS_ContentInfo_free(system)(system, cms);
 	cms = NULL;
 
 	return ret;
@@ -168,6 +167,7 @@ mycms_verify(
 	const int flags = CMS_DETACHED | CMS_BINARY | CMS_NO_SIGNER_CERT_VERIFY | CMS_NO_CONTENT_VERIFY;
 	CMS_verify(cms, _certs, NULL, _mycms_io_get_BIO(data_in), NULL, flags);
 #endif
+	mycms_system system = NULL;
 	CMS_ContentInfo *cms = NULL;
 	STACK_OF(X509) *_certs = NULL;
 	STACK_OF(CMS_SignerInfo) *signers = NULL;
@@ -177,6 +177,10 @@ mycms_verify(
 	int ret = 0;
 
 	if (mycms == NULL) {
+		goto cleanup;
+	}
+
+	if ((system = mycms_get_system(mycms)) == NULL) {
 		goto cleanup;
 	}
 
@@ -198,11 +202,11 @@ mycms_verify(
 		goto cleanup;
 	}
 
-	if ((cms = d2i_CMS_bio(_mycms_io_get_BIO(cms_in), NULL)) == NULL) {
+	if ((cms = mycms_system_driver_core_d2i_CMS_bio(system)(system, _mycms_io_get_BIO(cms_in), NULL)) == NULL) {
 		goto cleanup;
 	}
 
-	if ((signers = CMS_get0_SignerInfos(cms)) == NULL) {
+	if ((signers = mycms_system_driver_core_CMS_get0_SignerInfos(system)(system, cms)) == NULL) {
 		goto cleanup;
 	}
 
@@ -215,7 +219,7 @@ mycms_verify(
 	 * 1. It iterates all certificates and verify signature (resources)
 	 * 2. It must have access to all signer certificates
          */
-	if ((cmsbio = CMS_dataInit(cms, _mycms_io_get_BIO(data_in))) == NULL) {
+	if ((cmsbio = mycms_system_driver_core_CMS_dataInit(system)(system, cms, _mycms_io_get_BIO(data_in))) == NULL) {
 		goto cleanup;
 	}
 
@@ -240,9 +244,9 @@ mycms_verify(
 		for (f = 0, j = 0; !f && j < sk_CMS_SignerInfo_num(signers); j++) {
 			CMS_SignerInfo *signer = sk_CMS_SignerInfo_value(signers, j);
 
-			if (!CMS_SignerInfo_cert_cmp(signer, x509)) {
+			if (!mycms_system_driver_core_CMS_SignerInfo_cert_cmp(system)(system, signer, x509)) {
 				f = 1;
-				if (CMS_SignerInfo_verify_content(signer, cmsbio) <= 0) {
+				if (mycms_system_driver_core_CMS_SignerInfo_verify_content(system)(system, signer, cmsbio) <= 0) {
 					goto cleanup;
 				}
 			}
@@ -270,7 +274,7 @@ cleanup:
 	}
 	cmsbio = NULL;
 
-	CMS_ContentInfo_free(cms);
+	mycms_system_driver_core_CMS_ContentInfo_free(system)(system, cms);
 	cms = NULL;
 
 	return ret;

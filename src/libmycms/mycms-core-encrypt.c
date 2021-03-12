@@ -2,17 +2,18 @@
 #include <config.h>
 #endif
 
-#include <openssl/cms.h>
 #include <openssl/x509.h>
 
 #include <mycms/mycms.h>
 
 #include "mycms-certificate-private.h"
 #include "mycms-io-private.h"
+#include "mycms-system-driver-core.h"
 
 static
 STACK_OF(CMS_RecipientInfo) *
 __add_recepients(
+	const mycms_system system,
 	CMS_ContentInfo *cms,
 	const mycms_list_blob to,
 	int flags
@@ -36,14 +37,14 @@ __add_recepients(
 			goto cleanup;
 		}
 
-		if ((ri = CMS_add1_recipient_cert(cms, x509, flags | CMS_KEY_PARAM)) == NULL) {
+		if ((ri = mycms_system_driver_core_CMS_add1_recipient_cert(system)(system, cms, x509, flags | CMS_KEY_PARAM)) == NULL) {
 			goto cleanup;
 		}
 
 		X509_free(x509);
 		x509 = NULL;
 
-		if ((ctx = CMS_RecipientInfo_get0_pkey_ctx(ri)) == NULL) {
+		if ((ctx = mycms_system_driver_core_CMS_RecipientInfo_get0_pkey_ctx(system)(system, ri)) == NULL) {
 			goto cleanup;
 		}
 
@@ -76,6 +77,7 @@ mycms_encrypt(
 	const mycms_io data_pt,
 	const mycms_io data_ct
 ) {
+	mycms_system system = NULL;
 	STACK_OF(CMS_RecipientInfo) *added = NULL;
 	const EVP_CIPHER *c = NULL;
 	CMS_ContentInfo *cms = NULL;
@@ -83,6 +85,10 @@ mycms_encrypt(
 	int ret = 0;
 
 	if (mycms == NULL) {
+		goto cleanup;
+	}
+
+	if ((system = mycms_get_system(mycms)) == NULL) {
 		goto cleanup;
 	}
 
@@ -110,19 +116,19 @@ mycms_encrypt(
 		goto cleanup;
 	}
 
-	if ((cms = CMS_encrypt(NULL, NULL, c, flags)) == NULL) {
+	if ((cms = mycms_system_driver_core_CMS_encrypt(system)(system, NULL, NULL, c, flags)) == NULL) {
 		goto cleanup;
 	}
 
-	if ((added = __add_recepients(cms, to, flags)) == NULL) {
+	if ((added = __add_recepients(system, cms, to, flags)) == NULL) {
 		goto cleanup;
 	}
 
-	if (!CMS_final(cms, _mycms_io_get_BIO(data_pt), _mycms_io_get_BIO(data_ct), flags)) {
+	if (!mycms_system_driver_core_CMS_final(system)(system, cms, _mycms_io_get_BIO(data_pt), _mycms_io_get_BIO(data_ct), flags)) {
 		goto cleanup;
 	}
 
-	if (i2d_CMS_bio(_mycms_io_get_BIO(cms_out), cms)  <= 0) {
+	if (mycms_system_driver_core_i2d_CMS_bio(system)(system, _mycms_io_get_BIO(cms_out), cms)  <= 0) {
 		goto cleanup;
 	}
 
@@ -133,7 +139,7 @@ cleanup:
 	sk_CMS_RecipientInfo_free(added);
 	added = NULL;
 
-	CMS_ContentInfo_free(cms);
+	mycms_system_driver_core_CMS_ContentInfo_free(system)(system, cms);
 	cms = NULL;
 
 	return ret;
@@ -147,6 +153,7 @@ mycms_encrypt_add(
 	const mycms_io cms_in,
 	const mycms_io cms_out
 ) {
+	mycms_system system = NULL;
 	STACK_OF(CMS_RecipientInfo) *added = NULL;
 	CMS_ContentInfo *cms = NULL;
 	int flags = CMS_BINARY | CMS_DETACHED | CMS_PARTIAL | CMS_USE_KEYID;
@@ -154,6 +161,10 @@ mycms_encrypt_add(
 	int i;
 
 	if (mycms == NULL) {
+		goto cleanup;
+	}
+
+	if ((system = mycms_get_system(mycms)) == NULL) {
 		goto cleanup;
 	}
 
@@ -173,31 +184,31 @@ mycms_encrypt_add(
 		goto cleanup;
 	}
 
-	if ((cms = d2i_CMS_bio(_mycms_io_get_BIO(cms_in), NULL)) == NULL) {
+	if ((cms = mycms_system_driver_core_d2i_CMS_bio(system)(system, _mycms_io_get_BIO(cms_in), NULL)) == NULL) {
 		goto cleanup;
 	}
 
-	if (!CMS_decrypt_set1_pkey(cms, _mycms_certificate_get_EVP_PKEY(certificate), _mycms_certificate_get_X509(certificate))) {
+	if (!mycms_system_driver_core_CMS_decrypt_set1_pkey(system)(system, cms, _mycms_certificate_get_EVP_PKEY(certificate), _mycms_certificate_get_X509(certificate))) {
 		goto cleanup;
 	}
 
-	if ((added = __add_recepients(cms, to, flags)) == NULL) {
+	if ((added = __add_recepients(system, cms, to, flags)) == NULL) {
 		goto cleanup;
 	}
 
 	for (i = 0; i < sk_CMS_RecipientInfo_num(added); i++) {
 		CMS_RecipientInfo *ri = sk_CMS_RecipientInfo_value(added, i);
 
-		if (!CMS_RecipientInfo_encrypt(cms, ri)) {
+		if (!mycms_system_driver_core_CMS_RecipientInfo_encrypt(system)(system, cms, ri)) {
 			goto cleanup;
 		}
 	}
 
-	if (!CMS_final(cms, NULL, NULL, flags)) {
+	if (!mycms_system_driver_core_CMS_final(system)(system, cms, NULL, NULL, flags)) {
 		goto cleanup;
 	}
 
-	if (i2d_CMS_bio(_mycms_io_get_BIO(cms_out), cms)  <= 0) {
+	if (mycms_system_driver_core_i2d_CMS_bio(system)(system, _mycms_io_get_BIO(cms_out), cms)  <= 0) {
 		goto cleanup;
 	}
 
@@ -208,7 +219,7 @@ cleanup:
 	sk_CMS_RecipientInfo_free(added);
 	added = NULL;
 
-	CMS_ContentInfo_free(cms);
+	mycms_system_driver_core_CMS_ContentInfo_free(system)(system, cms);
 	cms = NULL;
 
 	return ret;

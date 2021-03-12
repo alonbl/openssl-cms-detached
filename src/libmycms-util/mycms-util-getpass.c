@@ -10,9 +10,10 @@
 #include <unistd.h>
 #endif
 
-#include <mycms/mycms-getpass.h>
+#include <mycms/mycms-util-getpass.h>
 
-#include "mycms-pinentry.h"
+#include "mycms-system-driver-util.h"
+#include "mycms-util-pinentry.h"
 
 static
 void
@@ -29,7 +30,7 @@ __chop(const char *s) {
 }
 
 const char *
-mycms_getpass_usage(void) {
+mycms_util_getpass_usage(void) {
 	return (
 		"PASSPHRASE EXPRESSION ATTRIBUTES\n"
 		"pass=string: read passphrase from string\n"
@@ -46,7 +47,7 @@ mycms_getpass_usage(void) {
 }
 
 int
-mycms_getpass(
+mycms_util_getpass(
 	const mycms mycms,
 	const char * const title
 #ifndef ENABLE_PINENTRY
@@ -94,7 +95,7 @@ mycms_getpass(
 		ret = 1;
 	} else if (!strncmp(exp, PASS_ENV, sizeof(PASS_ENV)-1)) {
 		const char *p = exp + strlen(PASS_ENV);
-		char *x = mycms_system_get_driver(system)->getenv(system, p);
+		char *x = mycms_system_driver_util_getenv(system)(system, p);
 		if (x == NULL || strlen(x) >= size) {
 			goto cleanup;
 		}
@@ -104,9 +105,9 @@ mycms_getpass(
 		const char *p = exp + strlen(PASS_FILE);
 		FILE *fp;
 
-		if ((fp = mycms_system_get_driver(system)->fopen(system, p, "r")) != NULL) {
-			char *x = mycms_system_get_driver(system)->fgets(system, pass, size, fp);
-			mycms_system_get_driver(system)->fclose(system, fp);
+		if ((fp = mycms_system_driver_util_fopen(system)(system, p, "r")) != NULL) {
+			char *x = mycms_system_driver_util_fgets(system)(system, pass, size, fp);
+			mycms_system_driver_util_fclose(system)(system, fp);
 			if (x == NULL) {
 				goto cleanup;
 			}
@@ -120,7 +121,7 @@ mycms_getpass(
 		int fd = atoi(p);
 		ssize_t s;
 
-		if ((s = mycms_system_get_driver(system)->read(system, fd, pass, size - 1)) == -1) {
+		if ((s = mycms_system_driver_util_read(system)(system, fd, pass, size - 1)) == -1) {
 			goto cleanup;
 		}
 
@@ -133,22 +134,22 @@ mycms_getpass(
 		const char *p = exp + strlen(PASS_PINENTRY);
 		_mycms_pinentry pinentry = NULL;
 
-		if ((pinentry = _mycms_pinentry_new(mycms)) == NULL) {
+		if ((pinentry = _mycms_util_pinentry_new(mycms)) == NULL) {
 			goto cleanup1;
 		}
 
-		if (!_mycms_pinentry_construct(pinentry, p)) {
+		if (!_mycms_util_pinentry_construct(pinentry, p)) {
 			goto cleanup1;
 		}
 
-		if (!_mycms_pinentry_exec(pinentry, title, prompt, pass, size)) {
+		if (!_mycms_util_pinentry_exec(pinentry, title, prompt, pass, size)) {
 			goto cleanup1;
 		}
 
 		ret = 1;
 
 cleanup1:
-		_mycms_pinentry_destruct(pinentry);
+		_mycms_util_pinentry_destruct(pinentry);
 
 #endif
 	} else {

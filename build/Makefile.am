@@ -4,4 +4,5 @@ MAINTAINERCLEANFILES = \
 
 EXTRA_DIST = \
 	ltrc.inc \
+	mycms-system-gen.sh \
 	$(NULL)
