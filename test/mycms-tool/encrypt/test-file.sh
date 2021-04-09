@@ -150,6 +150,57 @@ test_add_recepients() {
 	return 0
 }
 
+test_reset_recepients() {
+	local PREFIX="${MYTMP}/resetrecip"
+	local CMS1="${PREFIX}-cms1"
+	local CMS2="${PREFIX}-cms2"
+	local CT="${PREFIX}-ct1"
+	local OUTPT="${PREFIX}-pt"
+
+	echo "Encrypting to test1 and test2"
+	doval "${MYCMS_TOOL}" encrypt \
+		--cms-out="${CMS1}" \
+		--data-pt="${PT}" \
+		--data-ct="${CT}" \
+		--to="gen/test1.crt" \
+		--to="gen/test2.crt" \
+		--to="gen/test3.crt" \
+		--to="gen/test4.crt" \
+		|| die "reset-recip.encrypt"
+
+	echo "Reset to test3 and test4"
+	doval "${MYCMS_TOOL}" encrypt-reset \
+		--cms-in="${CMS1}" \
+		--cms-out="${CMS2}" \
+		--to="gen/test2.crt" \
+		--to="gen/test3.crt" \
+		|| die "reset-recip.encrypt"
+
+	local x
+	for x in test2 test3; do
+		echo "Decrypting by '${x}'"
+		doval "${MYCMS_TOOL}" decrypt \
+			--cms-in="${CMS2}" \
+			--recip-cert="file:cert=gen/${x}.crt:key=gen/${x}.key" \
+			--data-pt="${OUTPT}-${x}" \
+			--data-ct="${CT}" \
+			|| die "reset-recip.decrypt.${x}"
+		cmp -s "${PT}" "${OUTPT}-${x}" || die "reset-recip.decrypt.cmp"
+	done
+
+	for x in test1 test4; do
+		echo "Decrypting by '${x}' [SHOULD FAIL]"
+		doval "${MYCMS_TOOL}" decrypt \
+			--cms-in="${CMS2}" \
+			--recip-cert="file:cert=gen/${x}.crt:key=gen/${x}.key" \
+			--data-pt="${OUTPT}-${x}" \
+			--data-ct="${CT}" \
+			&& die "reset-recip.decrypt.${x} should fail"
+	done
+
+	return 0
+}
+
 [ -x "${MYCMS_TOOL}" ] || skip "no tool"
 features="$("${MYCMS_TOOL}" --version | grep "Features")" || die "Cannot execute tool"
 echo "${features}" | grep -q "sane" || die "tool is insane"
@@ -161,7 +212,7 @@ MYTMP="$(mktemp -d)"
 PT="${MYTMP}/pt"
 dd if=/dev/urandom bs=512 count=20 of="${PT}" status=none || die "dd plain"
 
-TESTS="test_sanity test_multiple_recepients test_add_recepients"
+TESTS="test_sanity test_multiple_recepients test_add_recepients test_reset_recepients"
 
 for test in $TESTS; do
 	echo "------------------------"

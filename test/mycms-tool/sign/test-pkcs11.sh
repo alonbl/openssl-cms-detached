@@ -129,7 +129,7 @@ test_sanity() {
 	keyid="$(get_keyid gen/test1.crt)" || die "test1.keyid"
 
 	[ "$(echo "${out}" | wc -l)" = 1 ] || die "Too many keys '${out}'"
-	echo "${out}" | grep -iq "^${test1_keyid}$" || die "Keyid mismatch expected '${test1_keyid}' actual '${out}'"
+	echo "${out}" | grep -iq "^${test1_keyid} SHA3-256$" || die "Keyid mismatch expected '${test1_keyid}' actual '${out}'"
 
 	echo "Verify signature"
 	out="$(doval "${MYCMS_TOOL}" verify \

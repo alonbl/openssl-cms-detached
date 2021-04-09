@@ -72,8 +72,7 @@ mycms_sign(
 			goto cleanup;
 		}
 
-		/* Does not work, see https://mta.openssl.org/pipermail/openssl-users/2021-February/013443.html */
-
+		/* Does not work, see https://github.com/openssl/openssl/issues/14257 */
 #if 0
 		if ((ctx = CMS_SignerInfo_get0_pkey_ctx(signer)) == NULL) {
 			goto cleanup;

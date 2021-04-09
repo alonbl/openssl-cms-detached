@@ -4,5 +4,5 @@ MAINTAINERCLEANFILES = \
 
 EXTRA_DIST = \
 	ltrc.inc \
-	mycms-system-gen.sh \
+	mycms-system-driver-id-gen.sh \
 	$(NULL)

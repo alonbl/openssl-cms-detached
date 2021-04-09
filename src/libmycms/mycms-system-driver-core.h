@@ -42,6 +42,10 @@ MYCMS_SYSTEM_DRIVER_FUNC(core, int, CMS_RecipientInfo_encrypt,
 MYCMS_SYSTEM_DRIVER_FUNC(core, EVP_PKEY_CTX *, CMS_RecipientInfo_get0_pkey_ctx,
 	CMS_RecipientInfo *ri)
 
+MYCMS_SYSTEM_DRIVER_FUNC(core, int, CMS_RecipientInfo_ktri_cert_cmp,
+	CMS_RecipientInfo *ri,
+	X509 *cert)
+
 MYCMS_SYSTEM_DRIVER_FUNC(core, int, CMS_SignerInfo_cert_cmp,
 	CMS_SignerInfo *si,
 	X509 *cert)

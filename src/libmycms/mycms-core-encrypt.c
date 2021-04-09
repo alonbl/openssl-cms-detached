@@ -224,3 +224,117 @@ cleanup:
 
 	return ret;
 }
+
+int
+mycms_encrypt_reset(
+	const mycms mycms,
+	const mycms_list_blob to,
+	const mycms_io cms_in,
+	const mycms_io cms_out
+) {
+	mycms_system system = NULL;
+	mycms_list_blob t;
+	CMS_ContentInfo *cms = NULL;
+	STACK_OF(CMS_RecipientInfo) *recps = NULL;
+	STACK_OF(CMS_RecipientInfo) *stash = NULL;
+	STACK_OF(X509) *certs = NULL;
+	int ret = 0;
+	int i;
+
+
+	if (mycms == NULL) {
+		goto cleanup;
+	}
+
+	if ((system = mycms_get_system(mycms)) == NULL) {
+		goto cleanup;
+	}
+
+	if (to == NULL) {
+		goto cleanup;
+	}
+
+	if (cms_in == NULL) {
+		goto cleanup;
+	}
+
+	if (cms_out == NULL) {
+		goto cleanup;
+	}
+
+	if ((stash = sk_CMS_RecipientInfo_new_null()) == NULL) {
+		goto cleanup;
+	}
+
+	if ((certs = sk_X509_new_null()) == NULL) {
+		goto cleanup;
+	}
+
+	if ((cms = mycms_system_driver_core_d2i_CMS_bio(system)(system, _mycms_io_get_BIO(cms_in), NULL)) == NULL) {
+		goto cleanup;
+	}
+
+	if ((recps = CMS_get0_RecipientInfos(cms)) == NULL) {
+		goto cleanup;
+	}
+
+	for (t = to;t != NULL;t = t->next) {
+		X509 *x509;
+		unsigned const char * p;
+
+		p = t->blob.data;
+		if ((x509 = d2i_X509(NULL, &p, t->blob.size)) == NULL) {
+			goto cleanup;
+		}
+
+		sk_X509_push(certs, x509);
+	}
+
+	for (i = 0; i < sk_CMS_RecipientInfo_num(recps); ) {
+		CMS_RecipientInfo *ri = sk_CMS_RecipientInfo_value(recps, i);
+		int found = 0;
+		int j;
+
+		for (j = 0;  j < sk_X509_num(certs); j++) {
+			X509 *x509 = sk_X509_value(certs, j);
+
+			if (mycms_system_driver_core_CMS_RecipientInfo_ktri_cert_cmp(system)(system, ri, x509) == 0) {
+				found = 1;
+				break;
+			}
+		}
+
+		if (found) {
+			i++;
+		} else {
+			sk_CMS_RecipientInfo_push(stash, sk_CMS_RecipientInfo_delete(recps, i));
+		}
+	}
+
+	if (mycms_system_driver_core_i2d_CMS_bio(system)(system, _mycms_io_get_BIO(cms_out), cms)  <= 0) {
+		goto cleanup;
+	}
+
+	ret = 1;
+
+cleanup:
+
+	/*
+	 * HACK-BEGIN:
+	 * There is no way to directly free CMS_RecipientInfo so reapply these to CMS_ContentInfo.
+	 */
+	for (i = 0; i < sk_CMS_RecipientInfo_num(stash); i++) {
+		CMS_RecipientInfo *ri = sk_CMS_RecipientInfo_value(stash, i);
+		sk_CMS_RecipientInfo_push(recps, ri);
+	}
+	/* HACK-END */
+
+	sk_CMS_RecipientInfo_free(stash);
+
+	sk_X509_pop_free(certs, X509_free);
+
+	mycms_system_driver_core_CMS_ContentInfo_free(system)(system, cms);
+	cms = NULL;
+
+	return ret;
+}

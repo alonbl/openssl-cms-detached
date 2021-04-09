@@ -9,38 +9,71 @@
 #include "mycms-io-private.h"
 #include "mycms-system-driver-core.h"
 
+struct internal_signer_s {
+	X509 *x509;
+	ASN1_OBJECT *digest;
+	int found;
+};
+MYCMS_LIST_DECLARE(internal_signer, struct internal_signer_s, signer)
+
 static
-STACK_OF(X509) *
-__blob_to_x509(
-	const mycms_list_blob l
+void
+__internal_signer_free(
+	mycms_system system,
+	const mycms_list_internal_signer l
 ) {
-	mycms_list_blob t;
-	STACK_OF(X509) *ret = NULL;
-	STACK_OF(X509) *certs = NULL;
+	mycms_list_internal_signer _l = l;
+	while (_l != NULL) {
+		mycms_list_internal_signer t = _l;
+		_l = _l->next;
 
-	if ((certs = sk_X509_new_null()) == NULL) {
-		goto cleanup;
+		X509_free(t->signer.x509);
+		t->signer.x509 = NULL;
+		ASN1_OBJECT_free(t->signer.digest);
+		t->signer.digest = NULL;
+		mycms_system_free(system, t);
 	}
+}
 
-	for (t = l;t != NULL;t = t->next) {
-		X509 *x509;
+static
+mycms_list_internal_signer
+__mycms_list_signer_to_internal(
+	mycms_system system,
+	const mycms_list_signer l
+) {
+	mycms_list_signer e;
+	mycms_list_internal_signer ret = NULL;
+	mycms_list_internal_signer signers = NULL;
+
+	for (e = l;e != NULL;e = e->next) {
+		mycms_list_internal_signer t;
 		unsigned const char * p;
 
-		p = t->blob.data;
-		if ((x509 = d2i_X509(NULL, &p, t->blob.size)) == NULL) {
+		if ((t = mycms_system_zalloc(system, sizeof(*t))) == NULL) {
+			goto cleanup;
+		}
+		t->next = signers;
+		signers = t;
+
+		p = e->signer.cert.data;
+		if ((t->signer.x509 = d2i_X509(NULL, &p, e->signer.cert.size)) == NULL) {
 			goto cleanup;
 		}
 
-		sk_X509_push(certs, x509);
+		if (e->signer.digest != NULL) {
+			if ((t->signer.digest = OBJ_txt2obj(e->signer.digest, 0)) == NULL) {
+				goto cleanup;
+			}
+		}
 	}
 
-	ret = certs;
-	certs = NULL;
+	ret = signers;
+	signers = NULL;
 
 cleanup:
 
-	sk_X509_pop_free(certs, X509_free);
-	certs = NULL;
+	__internal_signer_free(system, signers);
+	signers = NULL;
 
 	return ret;
 }
@@ -48,10 +81,10 @@ cleanup:
 int
 mycms_verify_list_free(
 	const mycms mycms,
-	const mycms_list_blob l
+	const mycms_list_signer l
 ) {
 	mycms_system system = NULL;
-	mycms_list_blob t;
+	mycms_list_signer t;
 	int ret = 0;
 
 	if (mycms == NULL) {
@@ -64,9 +97,10 @@ mycms_verify_list_free(
 
 	t = l;
 	while(t != NULL) {
-		mycms_list_blob x = t;
+		mycms_list_signer x = t;
 		t = x->next;
-		mycms_system_free(system, x->blob.data);
+		mycms_system_free(system, x->signer.keyid.data);
+		mycms_system_free(system, x->signer.digest);
 		mycms_system_free(system, x);
 	}
 
@@ -81,12 +115,12 @@ int
 mycms_verify_list(
 	const mycms mycms,
 	const mycms_io cms_in,
-	mycms_list_blob * const keyids
+	mycms_list_signer * const signers
 ) {
 	mycms_system system = NULL;
 	CMS_ContentInfo *cms = NULL;
-	STACK_OF(CMS_SignerInfo) *signers = NULL;
-	mycms_list_blob _keyids = NULL;
+	STACK_OF(CMS_SignerInfo) *signerids = NULL;
+	mycms_list_signer _signers = NULL;
 	int i;
 	int ret = 0;
 
@@ -98,11 +132,11 @@ mycms_verify_list(
 		goto cleanup;
 	}
 
-	if (keyids == NULL) {
+	if (signers == NULL) {
 		goto cleanup;
 	}
 
-	*keyids = NULL;
+	*signers = NULL;
 
 	if ((system = mycms_get_system(mycms)) == NULL) {
 		goto cleanup;
@@ -112,42 +146,49 @@ mycms_verify_list(
 		goto cleanup;
 	}
 
-	if ((signers = mycms_system_driver_core_CMS_get0_SignerInfos(system)(system, cms)) == NULL) {
+	if ((signerids = mycms_system_driver_core_CMS_get0_SignerInfos(system)(system, cms)) == NULL) {
 		goto cleanup;
 	}
 
-	for (i = 0; i < sk_CMS_SignerInfo_num(signers); i++) {
-		CMS_SignerInfo *signer = sk_CMS_SignerInfo_value(signers, i);
+	for (i = 0; i < sk_CMS_SignerInfo_num(signerids); i++) {
+		CMS_SignerInfo *signer = sk_CMS_SignerInfo_value(signerids, i);
 		ASN1_OCTET_STRING *keyid = NULL;
 
 		if (mycms_system_driver_core_CMS_SignerInfo_get0_signer_id(system)(system, signer, &keyid, NULL, NULL)) {
-			mycms_list_blob t = NULL;
+			mycms_list_signer t = NULL;
+			X509_ALGOR *dig = NULL;
+			char digest[256];
 
 			if ((t = mycms_system_zalloc(system, sizeof(*t))) == NULL) {
 				goto cleanup;
 			}
 
-			t->next = _keyids;
-			_keyids = t;
+			t->next = _signers;
+			_signers = t;
 
-			_keyids->blob.size = keyid->length;
-			if ((_keyids->blob.data = mycms_system_zalloc(system, _keyids->blob.size)) == NULL) {
+			t->signer.keyid.size = keyid->length;
+			if ((t->signer.keyid.data = mycms_system_zalloc(system, t->signer.keyid.size)) == NULL) {
 				goto cleanup;
 			}
+			memcpy(t->signer.keyid.data, keyid->data, t->signer.keyid.size);
 
-			memcpy(_keyids->blob.data, keyid->data, _keyids->blob.size);
+			CMS_SignerInfo_get0_algs(signer, NULL, NULL, &dig, NULL);
+			if (!OBJ_obj2txt(digest, sizeof(digest), dig->algorithm, 0)) {
+				goto cleanup;
+			}
+			t->signer.digest = mycms_system_strdup(system, digest);
 		}
 	}
 
-	*keyids = _keyids;
-	_keyids = NULL;
+	*signers = _signers;
+	_signers = NULL;
 
 	ret = 1;
 
 cleanup:
 
-	mycms_verify_list_free(mycms, _keyids);
-	_keyids = NULL;
+	mycms_verify_list_free(mycms, _signers);
+	_signers = NULL;
 
 	mycms_system_driver_core_CMS_ContentInfo_free(system)(system, cms);
 	cms = NULL;
@@ -160,7 +201,7 @@ mycms_verify(
 	const mycms mycms,
 	mycms_io cms_in,
 	mycms_io data_in,
-	const mycms_list_blob certs,
+	const mycms_list_signer signers,
 	int * const verified
 ) {
 #if 0
@@ -168,12 +209,12 @@ mycms_verify(
 	CMS_verify(cms, _certs, NULL, _mycms_io_get_BIO(data_in), NULL, flags);
 #endif
 	mycms_system system = NULL;
+	mycms_list_internal_signer isigners = NULL;
+	mycms_list_internal_signer isigners_i = NULL;
 	CMS_ContentInfo *cms = NULL;
-	STACK_OF(X509) *_certs = NULL;
-	STACK_OF(CMS_SignerInfo) *signers = NULL;
+	STACK_OF(CMS_SignerInfo) *signerids = NULL;
 	BIO *cmsbio = NULL;
 	unsigned char buf[4096];
-	int i;
 	int ret = 0;
 
 	if (mycms == NULL) {
@@ -198,7 +239,7 @@ mycms_verify(
 
 	*verified = 0;
 
-	if ((_certs = __blob_to_x509(certs)) == NULL) {
+	if ((isigners = __mycms_list_signer_to_internal(system, signers)) == NULL) {
 		goto cleanup;
 	}
 
@@ -206,11 +247,11 @@ mycms_verify(
 		goto cleanup;
 	}
 
-	if ((signers = mycms_system_driver_core_CMS_get0_SignerInfos(system)(system, cms)) == NULL) {
+	if ((signerids = mycms_system_driver_core_CMS_get0_SignerInfos(system)(system, cms)) == NULL) {
 		goto cleanup;
 	}
 
-	if (sk_CMS_SignerInfo_num(signers) <= 0) {
+	if (sk_CMS_SignerInfo_num(signerids) <= 0) {
 		goto cleanup;
 	}
 
@@ -236,33 +277,35 @@ mycms_verify(
 
 	ret = 1;
 
-	for (i = 0; i < sk_X509_num(_certs); i++) {
-		X509 *x509 = sk_X509_value(_certs, i);
-		int f;
-		int j;
+	for (isigners_i = isigners; isigners_i != NULL; isigners_i = isigners_i->next) {
+		int i;
+		for (i = 0; i < sk_CMS_SignerInfo_num(signerids); i++) {
+			CMS_SignerInfo *signer = sk_CMS_SignerInfo_value(signerids, i);
 
-		for (f = 0, j = 0; !f && j < sk_CMS_SignerInfo_num(signers); j++) {
-			CMS_SignerInfo *signer = sk_CMS_SignerInfo_value(signers, j);
+			if (!mycms_system_driver_core_CMS_SignerInfo_cert_cmp(system)(system, signer, isigners_i->signer.x509)) {
+				X509_ALGOR *dig = NULL;
 
-			if (!mycms_system_driver_core_CMS_SignerInfo_cert_cmp(system)(system, signer, x509)) {
-				f = 1;
-				if (mycms_system_driver_core_CMS_SignerInfo_verify_content(system)(system, signer, cmsbio) <= 0) {
-					goto cleanup;
+				CMS_SignerInfo_get0_algs(signer, NULL, NULL, &dig, NULL);
+
+				if (isigners_i->signer.digest == NULL || OBJ_cmp(dig->algorithm, isigners_i->signer.digest) == 0) {
+					if (mycms_system_driver_core_CMS_SignerInfo_verify_content(system)(system, signer, cmsbio) <= 0) {
+						goto cleanup;
+					}
+					isigners_i->signer.found = 1;
 				}
 			}
-		}
-
-		if (!f) {
-			goto cleanup;
 		}
 	}
 
 	*verified = 1;
+	for (isigners_i = isigners; isigners_i != NULL; isigners_i = isigners_i->next) {
+		*verified = *verified && isigners_i->signer.found;
+	}
 
 cleanup:
 
-	sk_X509_pop_free(_certs, X509_free);
-	_certs = NULL;
+	__internal_signer_free(system, isigners);
+	isigners = NULL;
 
 	{
 		BIO *tbio;

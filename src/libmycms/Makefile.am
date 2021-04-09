@@ -16,6 +16,7 @@ MYCMS_SYSTEM_DRIVER_IMPORTS = \
 	CMS_ContentInfo_free \
 	CMS_RecipientInfo_encrypt \
 	CMS_RecipientInfo_get0_pkey_ctx \
+	CMS_RecipientInfo_ktri_cert_cmp \
 	CMS_SignerInfo_cert_cmp \
 	CMS_SignerInfo_get0_signer_id \
 	CMS_SignerInfo_verify_content \

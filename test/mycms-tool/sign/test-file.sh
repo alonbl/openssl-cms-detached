@@ -66,7 +66,7 @@ test_sanity() {
 		)" || die "sanity.verify-list '${out}'"
 
 	[ "$(echo "${out}" | wc -l)" = 1 ] || die "Incorrect number of keys '${out}'"
-	echo "${out}" | grep -iq "^${test1_keyid}$" || die "Keyid mismatch expected '${test1_keyid}' actual '${out}'"
+	echo "${out}" | grep -iq "^${test1_keyid} SHA3-256$" || die "Keyid mismatch expected '${test1_keyid}' actual '${out}'"
 
 	echo "Verify signature"
 	out="$(doval "${MYCMS_TOOL}" verify \
@@ -129,8 +129,8 @@ test_two() {
 		)" || die "sanity.verify-list.test2 '${out}'"
 
 	[ "$(echo "${out}" | wc -l)" = 2 ] || die "Incorrect number of keys '${out}'"
-	echo "${out}" | grep -iq "^${test1_keyid}$" || die "Keyid mismatch expected '${test1_keyid}' actual '${out}'"
-	echo "${out}" | grep -iq "^${test2_keyid}$" || die "Keyid mismatch expected '${test2_keyid}' actual '${out}'"
+	echo "${out}" | grep -iq "^${test1_keyid} SHA3-256$" || die "Keyid mismatch expected '${test1_keyid}' actual '${out}'"
+	echo "${out}" | grep -iq "^${test2_keyid} SHA3-256$" || die "Keyid mismatch expected '${test2_keyid}' actual '${out}'"
 
 	echo "Verify signature"
 	out="$(doval "${MYCMS_TOOL}" verify \
@@ -167,17 +167,23 @@ test_multi_digest() {
 	local PREFIX="${MYTMP}/sanity"
 	local CMS="${PREFIX}-cms"
 	local CMS2="${PREFIX}-cms2"
+	local CMS3="${PREFIX}-cms3"
 	local out
+	local expected
+	local digest
 	local test1_keyid
 	local test2_keyid
+	local test3_keyid
 
 	test1_keyid="$(get_keyid gen/test1.crt)" || die "test1.keyid"
 	test2_keyid="$(get_keyid gen/test2.crt)" || die "test2.keyid"
+	test3_keyid="$(get_keyid gen/test3.crt)" || die "test3.keyid"
 
 	echo "Signing by test1"
 	doval "${MYCMS_TOOL}" sign \
 		--cms-out="${CMS}" \
 		--data-in="${DATA}" \
+		--digest=sha3-256 \
 		--digest=sha256 \
 		--digest=sha1 \
 		--signer-cert="file:cert=gen/test1.crt:key=gen/test1.key" \
@@ -192,24 +198,77 @@ test_multi_digest() {
 		--signer-cert="file:cert=gen/test2.crt:key=gen/test2.key" \
 		|| die "sanity.sign.test2"
 
+	echo "Signing by test3"
+	doval "${MYCMS_TOOL}" sign \
+		--cms-in="${CMS2}" \
+		--cms-out="${CMS3}" \
+		--digest=sha3-256 \
+		--signer-cert="file:cert=gen/test3.crt:key=gen/test3.key" \
+		|| die "sanity.sign.test3"
+
 	echo "List signers test2"
 	out="$(doval "${MYCMS_TOOL}" verify-list \
-		--cms-in="${CMS2}" \
+		--cms-in="${CMS3}" \
 		)" || die "sanity.verify-list.test2 '${out}'"
 
-	[ "$(echo "${out}" | wc -l)" = 4 ] || die "Incorrect number of keys '${out}'"
-	[ "$(echo "${out}" | grep -i "^${test1_keyid}$" | wc -l)" = 2 ] || die "Invalid number of signers test1 '${out}'"
-	[ "$(echo "${out}" | grep -i "^${test2_keyid}$" | wc -l)" = 2 ] || die "Invalid number of signers test1 '${out}'"
+	[ "$(echo "${out}" | wc -l)" = 6 ] || die "Incorrect number of keys '${out}'"
+	expected="\
+${test1_keyid} SHA3-256
+${test1_keyid} SHA256
+${test2_keyid} SHA256
+${test1_keyid} SHA1
+${test2_keyid} SHA1
+${test3_keyid} SHA3-256"
+	[ "$(echo "${out}" | sort | tr [a-z] [A-Z])" = "$(echo "${expected}" | sort | tr [a-z] [A-Z])" ] || die "Incorrect output expected='${expected}' actual='${out}'"
 
 	echo "Verify signature"
 	out="$(doval "${MYCMS_TOOL}" verify \
-		--cms-in="${CMS2}" \
+		--cms-in="${CMS3}" \
 		--data-in="${DATA}" \
 		--cert="gen/test1.crt" \
 		--cert="gen/test2.crt" \
-		)" || die "sanity.verify.${x}"
+		)" || die "sanity.verify.sanity"
 
 	[ "${out}" = "VERIFIED" ] || die "sanity.verify2.result '${out}'"
+
+	for digest in sha1 sha256; do
+		for cert in test1 test2; do
+			echo "Verify signature with specific digest [${digest}/${cert}]"
+			out="$(doval "${MYCMS_TOOL}" verify \
+				--cms-in="${CMS3}" \
+				--data-in="${DATA}" \
+				--digest="${digest}" \
+				--cert="gen/${cert}.crt" \
+				)" || die "sanity.verify.${digest}.${cert}"
+
+			[ "${out}" = "VERIFIED" ] || die "sanity.verify3.result '${out}'"
+		done
+	done
+
+	digest=sha3-256
+	for cert in test1 test3; do
+		echo "Verify signature with specific digest [${digest}/${cert}]"
+		out="$(doval "${MYCMS_TOOL}" verify \
+			--cms-in="${CMS3}" \
+			--data-in="${DATA}" \
+			--digest="${digest}" \
+			--cert="gen/${cert}.crt" \
+			)" || die "sanity.verify.${digest}.${cert}"
+
+		[ "${out}" = "VERIFIED" ] || die "sanity.verify3.result '${out}'"
+	done
+
+	for digest in sha1 sha256; do
+		echo "Should fail verify with unused digest"
+		out="$(doval "${MYCMS_TOOL}" verify \
+			--cms-in="${CMS3}" \
+			--data-in="${DATA}" \
+			--digest="${digest}" \
+			--cert="gen/test3.crt" \
+			)" || die "sanity.verify.invalid.digest.${digest}"
+
+		[ "${out}" = "VERIFIED" ] && die "sanity.verify.invalid.digest.digest.${digest} '${out}'"
+	done
 
 	return 0
 }

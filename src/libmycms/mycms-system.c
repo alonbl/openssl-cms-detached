@@ -153,6 +153,16 @@ __driver_default_CMS_RecipientInfo_get0_pkey_ctx(
 
 static
 int
+__driver_default_CMS_RecipientInfo_ktri_cert_cmp(
+	const mycms_system system __attribute__((unused)),
+	CMS_RecipientInfo *ri,
+	X509 *cert
+) {
+	return CMS_RecipientInfo_ktri_cert_cmp(ri, cert);
+}
+
+static
+int
 __driver_default_CMS_SignerInfo_cert_cmp(
 	const mycms_system system __attribute__((unused)),
 	CMS_SignerInfo *si,
@@ -337,9 +347,14 @@ static const struct mycms_system_driver_entry_s __DRIVER_ENTRIES[] = {
 	{ MYCMS_SYSTEM_DRIVER_ID_core_dlsym, (void (*)()) __driver_default_dlsym},
 #endif
 
+	/*
+	 * TODO: add add the rest libcrypto entries
+	 */
+
 	{ MYCMS_SYSTEM_DRIVER_ID_core_CMS_ContentInfo_free, (void (*)()) __driver_default_CMS_ContentInfo_free},
 	{ MYCMS_SYSTEM_DRIVER_ID_core_CMS_RecipientInfo_encrypt, (void (*)()) __driver_default_CMS_RecipientInfo_encrypt},
 	{ MYCMS_SYSTEM_DRIVER_ID_core_CMS_RecipientInfo_get0_pkey_ctx, (void (*)()) __driver_default_CMS_RecipientInfo_get0_pkey_ctx},
+	{ MYCMS_SYSTEM_DRIVER_ID_core_CMS_RecipientInfo_ktri_cert_cmp, (void (*)()) __driver_default_CMS_RecipientInfo_ktri_cert_cmp},
 	{ MYCMS_SYSTEM_DRIVER_ID_core_CMS_SignerInfo_cert_cmp, (void (*)()) __driver_default_CMS_SignerInfo_cert_cmp},
 	{ MYCMS_SYSTEM_DRIVER_ID_core_CMS_SignerInfo_get0_signer_id, (void (*)()) __driver_default_CMS_SignerInfo_get0_signer_id},
 	{ MYCMS_SYSTEM_DRIVER_ID_core_CMS_SignerInfo_verify_content, (void (*)()) __driver_default_CMS_SignerInfo_verify_content},
@@ -441,7 +456,7 @@ void (*mycms_system_driver_find(
 		goto cleanup;
 	}
 
-	/** TODO: optimize */
+	/* TODO: optimize */
 	for (x = system->driver_entries; x->id != 0; x++) {
 		if (x->id == id) {
 			ret = x->f;
