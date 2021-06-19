@@ -13,15 +13,14 @@ mycms_sign(
 	const mycms mycms,
 	const mycms_certificate certificate,
 	const mycms_list_str digests,
+	const mycms_dict keyopt,
 	const mycms_io cms_in,
 	const mycms_io cms_out,
 	const mycms_io data_in
 ) {
 	mycms_system system = NULL;
 	CMS_ContentInfo *cms = NULL;
-#if 0
 	EVP_PKEY_CTX *ctx = NULL;
-#endif
 	mycms_list_str t;
 	int flags = CMS_BINARY | CMS_DETACHED | CMS_USE_KEYID | CMS_NOCERTS | CMS_NOSMIMECAP;
 	int ret = 0;
@@ -56,6 +55,7 @@ mycms_sign(
 	for (t = digests;t != NULL; t = t->next) {
 		const EVP_MD *digest = NULL;
 		CMS_SignerInfo *signer = NULL;
+		mycms_list_dict_entry opt;
 
 		if ((digest = EVP_get_digestbyname(t->str)) == NULL) {
 			goto cleanup;
@@ -67,21 +67,22 @@ mycms_sign(
 			_mycms_certificate_get_X509(certificate),
 			_mycms_certificate_get_EVP_PKEY(certificate),
 			digest,
-			flags /*| CMS_KEY_PARAM */
+			flags | (mycms_dict_entries(keyopt) == NULL ? 0 : CMS_KEY_PARAM) /* Does not work for 2nd sign, see https://github.com/openssl/openssl/issues/14257 */
 		)) == NULL) {
 			goto cleanup;
 		}
 
-		/* Does not work, see https://github.com/openssl/openssl/issues/14257 */
-#if 0
-		if ((ctx = CMS_SignerInfo_get0_pkey_ctx(signer)) == NULL) {
-			goto cleanup;
-		}
+		if (mycms_dict_entries(keyopt) != NULL) { /* TODO: remove when openssl bug fixed */
+			if ((ctx = CMS_SignerInfo_get0_pkey_ctx(signer)) == NULL) {
+				goto cleanup;
+			}
 
-		if (!EVP_PKEY_CTX_set_rsa_padding(ctx, /*RSA_PKCS1_PSS_PADDING*/ RSA_PKCS1_PADDING)) {
-			goto cleanup;
+			for (opt = mycms_dict_entries(keyopt); opt != NULL; opt = opt->next) {
+				if (!EVP_PKEY_CTX_ctrl_str(ctx, opt->entry.k, opt->entry.v)) {
+					goto cleanup;
+				}
+			}
 		}
-#endif
 	}
 
 	if (cms_in != NULL) {

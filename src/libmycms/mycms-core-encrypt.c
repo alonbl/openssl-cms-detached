@@ -16,6 +16,7 @@ __add_recepients(
 	const mycms_system system,
 	CMS_ContentInfo *cms,
 	const mycms_list_blob to,
+	const mycms_dict keyopt,
 	int flags
 ) {
 	STACK_OF(CMS_RecipientInfo) *ret = NULL;
@@ -30,6 +31,7 @@ __add_recepients(
 	for (t = to;t != NULL;t = t->next) {
 		CMS_RecipientInfo *ri;
 		EVP_PKEY_CTX *ctx;
+		mycms_list_dict_entry opt;
 		unsigned const char * p;
 
 		p = t->blob.data;
@@ -48,8 +50,10 @@ __add_recepients(
 			goto cleanup;
 		}
 
-		if (!EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING)) {
-			goto cleanup;
+		for (opt = mycms_dict_entries(keyopt); opt != NULL; opt = opt->next) {
+			if (!EVP_PKEY_CTX_ctrl_str(ctx, opt->entry.k, opt->entry.v)) {
+				goto cleanup;
+			}
 		}
 
 		sk_CMS_RecipientInfo_push(added, ri);
@@ -73,6 +77,7 @@ mycms_encrypt(
 	const mycms mycms,
 	const char * const cipher_name,
 	const mycms_list_blob to,
+	const mycms_dict keyopt,
 	const mycms_io cms_out,
 	const mycms_io data_pt,
 	const mycms_io data_ct
@@ -120,7 +125,7 @@ mycms_encrypt(
 		goto cleanup;
 	}
 
-	if ((added = __add_recepients(system, cms, to, flags)) == NULL) {
+	if ((added = __add_recepients(system, cms, to, keyopt, flags)) == NULL) {
 		goto cleanup;
 	}
 
@@ -150,6 +155,7 @@ mycms_encrypt_add(
 	const mycms mycms,
 	const mycms_certificate certificate,
 	const mycms_list_blob to,
+	const mycms_dict keyopt,
 	const mycms_io cms_in,
 	const mycms_io cms_out
 ) {
@@ -192,7 +198,7 @@ mycms_encrypt_add(
 		goto cleanup;
 	}
 
-	if ((added = __add_recepients(system, cms, to, flags)) == NULL) {
+	if ((added = __add_recepients(system, cms, to, keyopt, flags)) == NULL) {
 		goto cleanup;
 	}
 

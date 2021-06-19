@@ -27,6 +27,7 @@ _cmd_encrypt(
 		OPT_DATA_PT,
 		OPT_DATA_CT,
 		OPT_TO,
+		OPT_KEYOPT,
 		OPT_MAX
 	};
 
@@ -37,6 +38,7 @@ _cmd_encrypt(
 		{"data-pt\0FILE|input plain text data", required_argument, NULL, OPT_DATA_PT},
 		{"data-ct\0FILE|output plain text data", required_argument, NULL, OPT_DATA_CT},
 		{"to\0FILE|target DER encoded certificate, may be specified several times", required_argument, NULL, OPT_TO},
+		{"keyopt\0KEYOPT_EXPRESSION|key options expression", required_argument, NULL, OPT_KEYOPT},
 		{NULL, 0, NULL, 0}
 	};
 
@@ -46,11 +48,14 @@ _cmd_encrypt(
 
 	const char *cipher = "AES-256-CBC";
 
+	const char * keyopt_exp = NULL;
+
 	mycms mycms = NULL;
 	mycms_io cms_out = NULL;
 	mycms_io data_pt = NULL;
 	mycms_io data_ct = NULL;
 	mycms_list_blob to = NULL;
+	mycms_dict keyopt_dict = NULL;
 
 	if ((mycms = mycms_new(system)) == NULL) {
 		goto cleanup;
@@ -124,6 +129,9 @@ _cmd_encrypt(
 					to = t;
 				}
 			break;
+			case OPT_KEYOPT:
+				keyopt_exp = optarg;
+			break;
 			default:
 				fprintf(stderr, "Invalid option\n");
 				goto cleanup;
@@ -147,7 +155,19 @@ _cmd_encrypt(
 		goto cleanup;
 	}
 
-	if (!mycms_encrypt(mycms, cipher, to, cms_out, data_pt, data_ct)) {
+	if ((keyopt_dict = mycms_dict_new(mycms)) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_dict_construct(keyopt_dict)) {
+		goto cleanup;
+	}
+
+	if (!util_split_string(keyopt_dict, keyopt_exp)) {
+		goto cleanup;
+	}
+
+	if (!mycms_encrypt(mycms, cipher, to, keyopt_dict, cms_out, data_pt, data_ct)) {
 		goto cleanup;
 	}
 
@@ -163,6 +183,9 @@ cleanup:
 
 	mycms_io_destruct(data_ct);
 	data_ct = NULL;
+
+	mycms_dict_destruct(keyopt_dict);
+	keyopt_dict = NULL;
 
 	while(to != NULL) {
 		mycms_list_blob t = to;
@@ -192,6 +215,7 @@ _cmd_encrypt_add(
 		OPT_RECIP_CERT,
 		OPT_RECIP_CERT_PASS,
 		OPT_TO,
+		OPT_KEYOPT,
 		OPT_MAX
 	};
 
@@ -202,6 +226,7 @@ _cmd_encrypt_add(
 		{"recip-cert\0CERTIFICATE_EXPRESSION|recipient certificate to use", required_argument, NULL, OPT_RECIP_CERT},
 		{"recip-cert-pass\0PASSPHRASE_EXPRESSION|recipient certificate passphrase to use", required_argument, NULL, OPT_RECIP_CERT_PASS},
 		{"to\0FILE|target DER encoded certificate, may be specified several times", required_argument, NULL, OPT_TO},
+		{"keyopt\0KEYOPT_EXPRESSION|key options expression", required_argument, NULL, OPT_KEYOPT},
 		{NULL, 0, NULL, 0}
 	};
 
@@ -211,11 +236,13 @@ _cmd_encrypt_add(
 
 	const char * certificate_exp = NULL;
 	const char * pass_exp = NULL;
+	const char * keyopt_exp = NULL;
 
 	mycms mycms = NULL;
 	mycms_io cms_in = NULL;
 	mycms_io cms_out = NULL;
 	mycms_list_blob to = NULL;
+	mycms_dict keyopt_dict = NULL;
 	mycms_dict certificate_dict = NULL;
 	mycms_dict pass_dict = NULL;
 	mycms_certificate certificate = NULL;
@@ -284,6 +311,9 @@ _cmd_encrypt_add(
 					to = t;
 				}
 			break;
+			case OPT_KEYOPT:
+				keyopt_exp = optarg;
+			break;
 			default:
 				fprintf(stderr, "Invalid option\n");
 				goto cleanup;
@@ -347,6 +377,18 @@ _cmd_encrypt_add(
 		goto cleanup;
 	}
 
+	if ((keyopt_dict = mycms_dict_new(mycms)) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_dict_construct(keyopt_dict)) {
+		goto cleanup;
+	}
+
+	if (!util_split_string(keyopt_dict, keyopt_exp)) {
+		goto cleanup;
+	}
+
 	if (!mycms_certificate_set_passphrase_callback(certificate, _cmd_common_passphrase_callback)) {
 		goto cleanup;
 	}
@@ -365,7 +407,7 @@ _cmd_encrypt_add(
 		goto cleanup;
 	}
 
-	if (!mycms_encrypt_add(mycms, certificate, to, cms_in, cms_out)) {
+	if (!mycms_encrypt_add(mycms, certificate, to, keyopt_dict, cms_in, cms_out)) {
 		goto cleanup;
 	}
 
@@ -387,6 +429,9 @@ cleanup:
 
 	mycms_dict_destruct(pass_dict);
 	pass_dict = NULL;
+
+	mycms_dict_destruct(keyopt_dict);
+	keyopt_dict = NULL;
 
 	while(to != NULL) {
 		mycms_list_blob t = to;

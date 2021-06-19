@@ -30,15 +30,15 @@ dist_noinst_DATA = \
 	$(NULL)
 
 TESTS_ENVIRONMENT = \
+	LIBTOOL="$(LIBTOOL)" \
+	MYCMS_TOOL="$(top_builddir)/src/mycms-tool/mycms-tool$(EXEEXT)" \
+	OPENSSL="$(OPENSSL)" \
+	PKCS11_TOOL="$(PKCS11_TOOL)" \
+	SOFTHSM2_MODULE="$(SOFTHSM2_MODULE)" \
+	SOFTHSM2_UTIL="$(SOFTHSM2_UTIL)" \
+	VALGRIND="$(VALGRIND)" \
 	builddir="$(builddir)" \
 	top_builddir="$(top_builddir)" \
-	MYCMS_TOOL="$(top_builddir)/src/mycms-tool/mycms-tool$(EXEEXT)" \
-	SOFTHSM2_UTIL="$(SOFTHSM2_UTIL)" \
-	SOFTHSM2_MODULE="$(SOFTHSM2_MODULE)" \
-	PKCS11_TOOL="$(PKCS11_TOOL)" \
-	VALGRIND="$(VALGRIND)" \
-	LIBTOOL="$(LIBTOOL)" \
-	OPENSSL="$(OPENSSL)" \
 	$(NULL)
 
 built.pki:	Makefile

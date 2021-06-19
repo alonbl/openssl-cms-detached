@@ -99,7 +99,7 @@ test_sanity() {
 }
 
 test_two() {
-	local PREFIX="${MYTMP}/sanity"
+	local PREFIX="${MYTMP}/two"
 	local CMS="${PREFIX}-cms"
 	local CMS2="${PREFIX}-cms2"
 	local out
@@ -273,6 +273,91 @@ ${test3_keyid} SHA3-256"
 	return 0
 }
 
+test_keyopt() {
+	local PREFIX="${MYTMP}/keyopt"
+	local CMS="${PREFIX}-cms"
+	local CMS2="${PREFIX}-cms2"
+	local out
+	local test1_keyid
+	local test2_keyid
+
+	test1_keyid="$(get_keyid gen/test1.crt)" || die "test1.keyid"
+	test2_keyid="$(get_keyid gen/test2.crt)" || die "test2.keyid"
+
+	while IFS=":" read padding padding_str; do
+		echo "Using ${padding}"
+
+		echo "Signing by test1"
+		doval "${MYCMS_TOOL}" sign \
+			--cms-out="${CMS}" \
+			--data-in="${DATA}" \
+			--signer-cert="file:cert=gen/test1.crt:key=gen/test1.key" \
+			--keyopt="rsa_padding_mode=${padding}" \
+			|| die "keyopt.sign.test1"
+
+		[ 1 -eq $("${OPENSSL}" asn1parse -in "${CMS}" -inform DER | grep "${padding_str}" | wc -l) ] || die "Exected '${padding_str}' for '${padding}'"
+
+		echo "Verify signature"
+		out="$(doval "${MYCMS_TOOL}" verify \
+			--cms-in="${CMS}" \
+			--data-in="${DATA}" \
+			--cert="gen/test1.crt" \
+			)" || die "keyopt.verify.${x}"
+
+		[ "${out}" = "VERIFIED" ] || die "keyopt.verify2.result '${out}'"
+
+	done << __EOF__
+pkcs1:rsaEncryption
+pss:rsassaPss
+__EOF__
+
+
+	# second signer does not add signature
+	# https://github.com/openssl/openssl/issues/14257
+	echo "Checking if openssl bug resolved"
+
+(
+	while IFS=":" read padding padding_str; do
+		echo "Using ${padding}"
+
+		echo "Signing by test1"
+		doval "${MYCMS_TOOL}" sign \
+			--cms-out="${CMS}" \
+			--data-in="${DATA}" \
+			--signer-cert="file:cert=gen/test1.crt:key=gen/test1.key" \
+			--keyopt="rsa_padding_mode=${padding}" \
+			|| die "keyopt.sign.test1"
+
+		echo "Signing by test2"
+		doval "${MYCMS_TOOL}" sign \
+			--cms-in="${CMS}" \
+			--cms-out="${CMS2}" \
+			--signer-cert="file:cert=gen/test2.crt:key=gen/test2.key" \
+			--keyopt="rsa_padding_mode=${padding}" \
+			|| die "sanity.sign.test2"
+
+		[ 2 -eq $("${OPENSSL}" asn1parse -in "${CMS2}" -inform DER | grep "${padding_str}" | wc -l) ] || die "Exected '${padding_str}' for '${padding}'"
+
+		echo "Verify signature"
+		out="$(doval "${MYCMS_TOOL}" verify \
+			--cms-in="${CMS2}" \
+			--data-in="${DATA}" \
+			--cert="gen/test1.crt" \
+			--cert="gen/test2.crt" \
+			)" || die "keyopt.verify2.${x}"
+
+		[ "${out}" = "VERIFIED" ] || die "keyopt.verify2.result '${out}'"
+
+	done << __EOF__
+pkcs1:rsaEncryption
+pss:rsassaPss
+__EOF__
+
+) && echo "OPENSSL KEYOPT BUG RESOLVED!" || echo "OPENSSL KEYOPT BUG exists"
+
+	return 0
+}
+
 [ -x "${MYCMS_TOOL}" ] || skip "no tool"
 features="$("${MYCMS_TOOL}" --version | grep "Features")" || die "Cannot execute tool"
 echo "${features}" | grep -q "sane" || die "tool is insane"
@@ -284,7 +369,7 @@ MYTMP="$(mktemp -d)"
 DATA="${MYTMP}/data"
 dd if=/dev/urandom bs=512 count=20 of="${DATA}" status=none || die "dd plain"
 
-TESTS="test_sanity test_two test_multi_digest"
+TESTS="test_sanity test_two test_multi_digest test_keyopt"
 
 for test in $TESTS; do
 	echo "------------------------"

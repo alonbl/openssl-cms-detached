@@ -24,6 +24,7 @@ _cmd_sign(
 		OPT_DIGEST,
 		OPT_SIGNER_CERT,
 		OPT_SIGNER_CERT_PASS,
+		OPT_KEYOPT,
 		OPT_CMS_IN,
 		OPT_CMS_OUT,
 		OPT_DATA_IN,
@@ -35,6 +36,7 @@ _cmd_sign(
 		{"digest\0DIGEST|digest to use, default is SHA3-256", required_argument, NULL, OPT_DIGEST},
 		{"signer-cert\0CERTIFICATE_EXPRESSION|signer certificate to use", required_argument, NULL, OPT_SIGNER_CERT},
 		{"signer-cert-pass\0PASSPHRASE_EXPRESSION|signer certificate passphrase to use", required_argument, NULL, OPT_SIGNER_CERT_PASS},
+		{"keyopt\0KEYOPT_EXPRESSION|key options expression", required_argument, NULL, OPT_KEYOPT},
 		{"cms-in\0FILE|input cms for resign", required_argument, NULL, OPT_CMS_IN},
 		{"cms-out\0FILE|output cms", required_argument, NULL, OPT_CMS_OUT},
 		{"data-in\0FILE|input text data", required_argument, NULL, OPT_DATA_IN},
@@ -47,6 +49,7 @@ _cmd_sign(
 
 	const char * certificate_exp = NULL;
 	const char * pass_exp = NULL;
+	const char * keyopt_exp = NULL;
 
 	mycms mycms = NULL;
 	mycms_io cms_in = NULL;
@@ -54,6 +57,7 @@ _cmd_sign(
 	mycms_io data_in = NULL;
 	mycms_dict certificate_dict = NULL;
 	mycms_dict pass_dict = NULL;
+	mycms_dict keyopt_dict = NULL;
 	mycms_certificate certificate = NULL;
 	mycms_list_str digests = NULL;
 
@@ -127,6 +131,9 @@ _cmd_sign(
 			case OPT_SIGNER_CERT_PASS:
 				pass_exp = optarg;
 			break;
+			case OPT_KEYOPT:
+				keyopt_exp = optarg;
+			break;
 			default:
 				fprintf(stderr, "Invalid option\n");
 				goto cleanup;
@@ -175,6 +182,18 @@ _cmd_sign(
 		goto cleanup;
 	}
 
+	if ((keyopt_dict = mycms_dict_new(mycms)) == NULL) {
+		goto cleanup;
+	}
+
+	if (!mycms_dict_construct(keyopt_dict)) {
+		goto cleanup;
+	}
+
+	if (!util_split_string(keyopt_dict, keyopt_exp)) {
+		goto cleanup;
+	}
+
 	if ((certificate = mycms_certificate_new(mycms)) == NULL) {
 		goto cleanup;
 	}
@@ -205,7 +224,7 @@ _cmd_sign(
 		goto cleanup;
 	}
 
-	if (!mycms_sign(mycms, certificate, digests, cms_in, cms_out, data_in)) {
+	if (!mycms_sign(mycms, certificate, digests, keyopt_dict, cms_in, cms_out, data_in)) {
 		goto cleanup;
 	}
 
@@ -236,6 +255,9 @@ cleanup:
 
 	mycms_dict_destruct(pass_dict);
 	pass_dict = NULL;
+
+	mycms_dict_destruct(keyopt_dict);
+	keyopt_dict = NULL;
 
 	mycms_destruct(mycms);
 	mycms = NULL;

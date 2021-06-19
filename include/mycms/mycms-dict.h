@@ -2,6 +2,14 @@
 #define __MYCMS_DICT_H
 
 #include "mycms-base.h"
+#include "mycms-list.h"
+
+typedef struct {
+	const char *k;
+	const char *v;
+} mycms_dict_entry;
+
+MYCMS_LIST_DECLARE(dict_entry, mycms_dict_entry, entry)
 
 struct mycms_dict_s;
 typedef struct mycms_dict_s *mycms_dict;
@@ -53,6 +61,11 @@ int
 mycms_dict_entry_del(
 	const mycms_dict dict,
 	const char * const k
+);
+
+mycms_list_dict_entry
+mycms_dict_entries(
+	const mycms_dict dict
 );
 
 #endif

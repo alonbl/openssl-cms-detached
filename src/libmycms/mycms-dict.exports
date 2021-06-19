@@ -1,5 +1,6 @@
 mycms_dict_construct
 mycms_dict_destruct
+mycms_dict_entries
 mycms_dict_entry_clear
 mycms_dict_entry_del
 mycms_dict_entry_get

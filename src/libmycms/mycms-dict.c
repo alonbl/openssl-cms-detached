@@ -7,15 +7,7 @@
 #include <openssl/crypto.h>
 
 #include <mycms/mycms-dict.h>
-#include <mycms/mycms-list.h>
 #include <mycms/mycms.h>
-
-typedef struct {
-	const char *k;
-	const char *v;
-} entry;
-
-MYCMS_LIST_DECLARE(dict_entry, entry, entry)
 
 struct mycms_dict_s {
 	mycms mycms;
@@ -297,6 +289,23 @@ mycms_dict_entry_del(
 	}
 
 	ret = 1;
+
+cleanup:
+
+	return ret;
+}
+
+mycms_list_dict_entry
+mycms_dict_entries(
+	const mycms_dict dict
+) {
+	mycms_list_dict_entry ret = NULL;
+
+	if (dict == NULL) {
+		goto cleanup;
+	}
+
+	ret = dict->head;
 
 cleanup:
 
